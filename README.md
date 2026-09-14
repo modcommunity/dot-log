@@ -70,6 +70,32 @@ add_child(config.build_router())
 ./server --log-level debug --log-remote-enabled true
 ```
 
+## Levels
+
+Six, and they are the ones every log system converged on. A level is a promise to the person reading, not a volume knob — the value of `ERROR` is entirely in never having meant "a player typed an unknown command".
+
+| Level | Means | Who is expected to act |
+| --- | --- | --- |
+| `TRACE` | Per-frame, per-packet, per-entity detail | Nobody. You are debugging right now. |
+| `DEBUG` | A decision or a state transition | You, later, reading it back. |
+| `INFO` | Something an admin would want kept | Nobody. It is the record. |
+| `WARN` | Recoverable, and somebody should look eventually | Somebody, eventually. |
+| `ERROR` | The operation failed | Somebody, today. |
+| `FATAL` | The process cannot continue | Somebody, now. |
+
+**`FATAL` is reserved.** It means a crash or a total breakage — boot failed, the listener could not open, the state the process needs is gone — and not "a very bad error". It is a promise that what follows is a shutdown, and the promise is worth something only because it is made rarely: there is exactly one `FATAL` in the whole fifty-nine-repository family. dot-log treats it as a promise too, and **flushes every target the moment one arrives**, because a record still sitting in a buffer when the process goes is a record nobody will ever read. `log test fatal` is refused for the same reason.
+
+The level is in every line, in every format, always:
+
+```
+2026-09-14T04:59:08.051Z inf server   booting hostname="arena" port=27015 slots=16
+2026-09-14T04:59:09.114Z WRN vote     could not open the vote yet reason=time
+```
+
+Three characters and a fixed width, so the message column lines up in a wall of them and the eye finds the upper-case ones without reading. `DotLog.level_style = DotLog.LevelStyle.NAME` spells them out instead (`INFO`, `WARN`), padded to five.
+
+In the wire formats it goes wherever that collector expects it — `level` for ndjson and Loki, `status` for Datadog, `@l` for Seq, `severityNumber` for OTLP, the RFC 5424 priority byte for syslog. **In the database it is two columns**: `level` as an `INTEGER` to sort, filter and compare on, and `level_name` beside it to read. Both, because sorting on the name alone gives `ERROR < FATAL < INFO < WARN` — alphabetical, and almost exactly the wrong order. The index is `(channel, level)`, which is the query people actually run.
+
 ## Where records can go
 
 | Target | For |
@@ -96,6 +122,27 @@ add_child(config.build_router())
 
 Adding another is one small file — build the body, name the path and the header, say what a successful response looks like. Nothing else changes.
 
+## The `log` command
+
+`DotLogCommands` is a console command with the shape dot-console's `DotConsoleBridge` duck-types, so it plugs into a client console or a server console without dot-log depending on either:
+
+```gdscript
+console.add_source(DotConsoleBridge.wrap(DotLogCommands.new(router), "log"))
+```
+
+```
+log                      what the logger is doing
+log tail [n]             the last n records, from the memory ring
+log grep <text> [n]      the ones matching, message and fields
+log level [name]         read or set the global level
+log channel <c> <level>  turn one subsystem up without turning everything up
+log targets              every destination, with its health and its backlog
+log flush                write and send everything now
+log test <level> <text>  put one record of that level through the whole pipeline
+```
+
+`log test` is the one that earns its place. Whether a collector is actually receiving anything cannot be read off anything else, and the usual way to find out is to wait for a real error and see whether it turns up — a test you run once, badly, at the worst possible moment.
+
 ## The browser
 
 A web build has no UDP, no raw TCP, and nowhere useful to put a file. `DotLogTargetHttp` is the only target that works there, which is also the reason it exists: it is how a shipped browser client reports anything at all. The file target still runs and still writes, into `user://`, which is an IndexedDB mirror — every write is synced, and it is still not somewhere a person can read.
@@ -110,7 +157,7 @@ done
 godot --headless --path . res://examples/log_selftest.tscn
 ```
 
-The suite runs 389 checks against a fake collector and a fake database driver, and needs neither a network nor an extension installed.
+The suite runs 445 checks against a fake collector and a fake database driver, and needs neither a network nor an extension installed.
 
 ## License
 

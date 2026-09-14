@@ -248,7 +248,9 @@ static func text_line(event: Dictionary, with_time: bool = true) -> String:
 	var parts: PackedStringArray = PackedStringArray()
 	if with_time:
 		parts.append(iso8601(event))
-	parts.append(DotLog.LEVEL_TAGS[clampi(int(event.get("level", 2)), 0, 6)])
+	# level_column, not LEVEL_TAGS: the level is always printed, and how wide it is
+	# printed is DotLog's decision so that every line in a process matches.
+	parts.append(DotLog.level_column(clampi(int(event.get("level", 2)), 0, 6)))
 
 	var channel: String = String(event.get("channel", ""))
 	if channel != "":

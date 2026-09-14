@@ -12,7 +12,7 @@ extends Node
 ## godot --headless --path . res://examples/log_selftest.tscn
 ## [/codeblock]
 
-const CHECKS := 389
+const CHECKS := 445
 
 var _passed := 0
 var _failed := 0
@@ -105,6 +105,7 @@ func _run() -> void:
 	_line("")
 
 	_test_event()
+	_test_levels()
 	_test_event_values()
 	_test_redactor()
 	_test_gate()
@@ -128,6 +129,7 @@ func _run() -> void:
 	await _test_router_reentrancy()
 	_test_config()
 	await _test_config_builds()
+	await _test_commands()
 
 	_line("")
 	_line("%d passed, %d failed" % [_passed, _failed])
@@ -670,11 +672,23 @@ func _test_sql_target() -> void:
 	var pg: PackedStringArray = DotLogSqlSchema.create_statements("dot_log", DotLogSqlSchema.Dialect.POSTGRES)
 	_check("postgres gets a JSON column type", pg[0].contains("JSONB"))
 
+	# The level is a sortable column, twice over: a number to order and compare by, and
+	# a name to read. Sorting on the name alone gives ERROR < FATAL < INFO < WARN, which
+	# is alphabetical and almost exactly the wrong order.
+	_check("level is its own INTEGER column", ddl[0].contains("level INTEGER NOT NULL"), null, ddl[0])
+	_check("with the name beside it", ddl[0].contains("level_name"))
+	_check("and both are in the column list", DotLogSqlSchema.COLUMNS.has("level") and DotLogSqlSchema.COLUMNS.has("level_name"))
+	_check("indexed with the channel, which is how it is queried", ddl[2].contains("(channel, level)"), null, ddl[2])
+
 	var events: Array = [_event(DotLog.Level.WARN, "net", "one"), _event(DotLog.Level.INFO, "net", "two")]
 	var insert: Dictionary = DotLogSqlSchema.insert_statement("dot_log", DotLogSqlSchema.Dialect.SQLITE, events, {"service": "arena"})
 	_check("one statement covers the batch", str(insert["sql"]).begins_with("INSERT INTO") and str(insert["sql"]).count("(?") == 2)
 	_check("with a parameter per column per row", (insert["params"] as Array).size() == DotLogSqlSchema.COLUMNS.size() * 2)
 	_check("the message is a parameter, never inline", not str(insert["sql"]).contains("one"))
+	var bound: Array = insert["params"]
+	_check("the level binds as a number", typeof(bound[2]) == TYPE_INT and int(bound[2]) == DotLog.Level.WARN)
+	_check("and its name beside it", str(bound[3]) == "WARN")
+	_check("so ORDER BY level is severity order", int(bound[2]) > int(bound[2 + DotLogSqlSchema.COLUMNS.size()]), null, "WARN then INFO")
 	_check("and the context is JSON", str((insert["params"] as Array)[7]).contains("arena"))
 
 	var prune: Dictionary = DotLogSqlSchema.prune_statement("dot_log", DotLogSqlSchema.Dialect.SQLITE, 1000)
@@ -1211,6 +1225,22 @@ func _test_router() -> void:
 	await router.add_target(broken)
 	_check("a target that cannot open is disabled, not fatal", not broken.enabled and router.is_started())
 
+	# A FATAL must not be sitting in a buffer when the process goes.
+	var fatal_http: FakeHttp = FakeHttp.new()
+	var shipper: DotLogTargetHttp = DotLogTargetHttp.new(DotLogFormatNdjson.new(), "https://logs.example")
+	shipper.http = fatal_http
+	await router.add_target(shipper)
+
+	DotLog.info("net", "an ordinary record")
+	_check("an ordinary record waits for the flush", shipper.pending() == 1 and fatal_http.requests.is_empty())
+
+	DotLog.fatal("net", "the process cannot continue")
+	_check("a FATAL flushes every target at once", fatal_http.requests.size() == 1, null, str(shipper.pending()))
+	_check("carrying the record that said so", fatal_http.last_body().contains("cannot continue"))
+	_check("and the router counts the urgent flush", int(router.describe()["urgent_flushes"]) == 1)
+	await router.remove_target(shipper)
+	fatal_http.free()
+
 	_check("describe_lines says what is going on", ",".join(router.describe_lines()).contains("log router"))
 	_check("and describe counts records", int(router.describe()["received"]) > 0)
 
@@ -1398,6 +1428,140 @@ func _test_config_builds() -> void:
 	with_remote.free()
 	with_tracker.free()
 	DotPaths.remove_tree("user://selftest-config")
+	DotLog.set_level(DotLog.Level.ERROR)
+	_line("")
+
+
+# --- Levels -----------------------------------------------------------------
+
+func _test_levels() -> void:
+	_line("levels")
+
+	_check("there are six, and OFF", DotLog.Level.OFF == 6 and DotLog.LEVEL_NAMES.size() == 7)
+	_check("in severity order", DotLog.Level.TRACE < DotLog.Level.DEBUG and DotLog.Level.DEBUG < DotLog.Level.INFO and DotLog.Level.INFO < DotLog.Level.WARN and DotLog.Level.WARN < DotLog.Level.ERROR and DotLog.Level.ERROR < DotLog.Level.FATAL)
+	_check("each has a name", DotLog.level_name(DotLog.Level.FATAL) == "FATAL")
+	_check("and a tag", DotLog.LEVEL_TAGS[DotLog.Level.FATAL] == "FTL")
+
+	# The level is in the line, at a fixed width, in both styles.
+	for level: int in range(DotLog.Level.TRACE, DotLog.Level.OFF):
+		var line: String = DotLogEvent.text_line(_event(level, "net", "a message"), false)
+		_check(
+			"a %s line shows its level" % DotLog.LEVEL_NAMES[level],
+			line.begins_with(DotLog.LEVEL_TAGS[level]),
+			null,
+			line
+		)
+
+	_check("every tag is three characters", DotLog.level_column(DotLog.Level.INFO).length() == 3 and DotLog.level_column(DotLog.Level.FATAL).length() == 3)
+
+	DotLog.level_style = DotLog.LevelStyle.NAME
+	var named: String = DotLogEvent.text_line(_event(DotLog.Level.WARN, "net", "x"), false)
+	_check("the NAME style spells it out", named.begins_with("WARN"), null, named)
+	_check("padded to the same width for every level", DotLog.level_column(DotLog.Level.INFO).length() == DotLog.level_column(DotLog.Level.WARN).length())
+	DotLog.level_style = DotLog.LevelStyle.TAG
+	_check("and the style goes back", DotLogEvent.text_line(_event(DotLog.Level.WARN, "net", "x"), false).begins_with("WRN"))
+
+	# Every wire format carries the level, under whatever name that format uses.
+	var event: Dictionary = _event(DotLog.Level.ERROR, "net", "broke")
+	_check("flatten names it", str(DotLogEvent.flatten(event, {})["level"]) == "error")
+	_check("severity_name is the collectors' spelling", DotLogEvent.severity_name(DotLog.Level.WARN) == "warning")
+
+	var json: Dictionary = _parse(DotLog.format_json(_record(DotLog.Level.WARN, "net", "x")))
+	_check("dot-core's JSON has the name", str(json["level"]) == "WARN")
+	_check("and the number, because a string sorts wrong", int(json["severity"]) == DotLog.Level.WARN)
+
+	# DotLog.at, for a level that is data rather than a call site.
+	var ring: DotLogTargetMemory = DotLogTargetMemory.new(8)
+	ring.open()
+	var sink: Callable = func(rec: Dictionary) -> void: ring.write(DotLogEvent.from_record(rec))
+	var saved_level: int = DotLog.get_level()
+	DotLog.set_level(DotLog.Level.TRACE)
+	DotLog.add_sink(sink)
+	DotLog.at(DotLog.Level.WARN, "test", "at a chosen level")
+	_check("DotLog.at emits at the level it was given", ring.size() == 1 and int(ring.tail(1)[0]["level"]) == DotLog.Level.WARN)
+	DotLog.at(DotLog.Level.OFF, "test", "this must not be logged")
+	_check("and refuses OFF, which is a threshold and not a severity", ring.size() == 1)
+	DotLog.remove_sink(sink)
+	DotLog.set_level(saved_level)
+
+	_line("")
+
+
+# --- Console commands -------------------------------------------------------
+
+func _test_commands() -> void:
+	_line("log command")
+
+	var router: DotLogRouter = DotLogRouter.new()
+	router.autostart = false
+	router.flush_interval_sec = 60.0
+	var memory: DotLogTargetMemory = DotLogTargetMemory.new(64)
+	router.targets.append(memory)
+	add_child(router)
+	await router.start()
+	DotLog.set_level(DotLog.Level.TRACE)
+
+	var commands: DotLogCommands = DotLogCommands.new(router)
+
+	_check("it claims `log` and nothing else", commands.claims("log") and not commands.claims("logs"))
+	_check("and names it", commands.names().has("log"))
+	_check("and has help", commands.help_for("log").contains("tail"))
+
+	DotLog.info("net", "a line to find")
+	DotLog.warn("chat", "another line")
+
+	var tail: DotResult = commands.execute("log tail 5")
+	_check("tail returns lines", tail.ok and str(tail.value).contains("a line to find"), tail)
+	_check("with their level shown", str(tail.value).contains("inf") and str(tail.value).contains("WRN"))
+
+	var grep: DotResult = commands.execute("log grep another")
+	_check("grep finds one", grep.ok and str(grep.value).contains("another line") and not str(grep.value).contains("a line to find"), grep)
+	_check("and says so when it finds none", str(commands.execute("log grep zzzznope").value).contains("no match"))
+
+	var levels: DotResult = commands.execute("log level")
+	_check("level lists all six and what they mean", levels.ok and str(levels.value).contains("FATAL") and str(levels.value).contains("cannot continue"), levels)
+
+	var set_level: DotResult = commands.execute("log level warn")
+	_check("level sets it", set_level.ok and DotLog.get_level() == DotLog.Level.WARN, set_level)
+	_check("an unknown level is refused", not commands.execute("log level loud").ok)
+	commands.execute("log level trace")
+
+	var channel: DotResult = commands.execute("log channel net debug")
+	_check("channel sets one channel", channel.ok and DotLog.get_channel_level("net") == DotLog.Level.DEBUG, channel)
+	commands.execute("log channel net default")
+	_check("and clears it again", DotLog.get_channel_level("net") == DotLog.get_level())
+
+	var targets: DotResult = commands.execute("log targets")
+	_check("targets lists them with their health", targets.ok and str(targets.value).contains("memory") and str(targets.value).contains("written"), targets)
+
+	var status: DotResult = commands.execute("log")
+	_check("a bare `log` is the status", status.ok and str(status.value).contains("log router"))
+
+	var before: int = memory.size()
+	var test: DotResult = commands.execute("log test error a deliberate one")
+	_check("test emits a record", test.ok and memory.size() == before + 1, test)
+	_check("at the level asked for", int(memory.tail(1)[0]["level"]) == DotLog.Level.ERROR)
+	_check("with the message", str(memory.tail(1)[0]["message"]) == "a deliberate one")
+	_check("on its own channel, so it cannot be mistaken for a real one", str(memory.tail(1)[0]["channel"]) == DotLogCommands.CHANNEL)
+
+	var fatal_test: DotResult = commands.execute("log test fatal pretend everything broke")
+	_check("but FATAL is refused, because it promises a shutdown", not fatal_test.ok, null, fatal_test.code())
+	_check("and says why", fatal_test.error.detail.contains("cannot continue"))
+
+	var unknown: DotResult = commands.execute("log nonsense")
+	_check("an unknown subcommand lists the real ones", not unknown.ok and unknown.error.detail.contains("tail"))
+
+	var completions: PackedStringArray = commands.complete("log ")
+	_check("completion offers the subcommands", completions.has("log tail"), null, ",".join(completions))
+	var level_completions: PackedStringArray = commands.complete("log level w")
+	_check("and the level names", level_completions.has("log level warn"), null, ",".join(level_completions))
+
+	var detached: DotLogCommands = DotLogCommands.new(null)
+	_check("with no router it says so rather than failing", detached.execute("log").ok and str(detached.execute("log").value).contains("nowhere else"))
+	_check("and refuses what it cannot do", not detached.execute("log tail").ok)
+
+	await router.shutdown()
+	router.queue_free()
 	DotLog.set_level(DotLog.Level.ERROR)
 	_line("")
 

@@ -48,6 +48,23 @@ signal target_failed(target_name: String, error: DotError)
 ## does it by hand.
 @export var autostart: bool = true
 
+## Flush every target the moment a record at this level arrives.
+##
+## [b]FATAL, and that is the level's whole operational meaning here.[/b] FATAL promises
+## that what follows the line is a shutdown, so anything still sitting in a buffer when
+## it arrives is a record that will never be written — and it is the last few records
+## before a process dies that explain why it died.
+##
+## The flush is started rather than awaited: this runs inside a log call, which runs
+## inside gameplay, and a log call that blocks on a network round trip has moved the
+## collector into the frame. A file target is synchronous and is therefore fully written
+## by the time this returns; a remote one gets its request started, which is as much as
+## can honestly be promised to a process that is about to stop existing. [method shutdown]
+## is the path that actually waits.
+##
+## Set it to [constant DotLog.Level.OFF] to disable.
+@export var flush_at_level: DotLog.Level = DotLog.Level.FATAL
+
 ## Seconds between flushes.
 ##
 ## 2 seconds is a compromise: a shorter interval means more, smaller HTTP requests and
@@ -110,6 +127,7 @@ var _routed: int = 0
 var _gated: int = 0
 var _reentrant: int = 0
 var _flushes: int = 0
+var _fatals: int = 0
 
 
 func _ready() -> void:
@@ -368,6 +386,10 @@ func _dispatch(event: Dictionary) -> void:
 	# listener is not a target — it cannot re-enter a write that has already finished.
 	routed.emit(event)
 
+	if int(event.get("level", DotLog.Level.INFO)) >= flush_at_level:
+		_fatals += 1
+		flush_all()
+
 
 ## Injects an event that did not come through [DotLog].
 ##
@@ -417,6 +439,7 @@ func describe() -> Dictionary:
 		"gated": _gated,
 		"reentrant_dropped": _reentrant,
 		"flushes": _flushes,
+		"urgent_flushes": _fatals,
 		"context": context,
 	}
 

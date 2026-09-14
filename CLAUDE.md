@@ -28,6 +28,17 @@ The consequence, which is what prompted this addon: a recoverable and entirely e
 
 `DotLog.mirror_to_engine` is now gated by `DotLog.mirror_min_level`, which defaults to `ERROR`. Warnings print as one line; errors keep the trace, because there the stack is the information and there are few enough of them to be worth the noise. `DotLogRouter.mirror_min_level` sets it from configuration, and setting it to `WARN` brings the traces back for an afternoon of hunting one specific warning.
 
+## Levels, and the one that is a promise
+
+Six, in dot-core, and dot-log adds no seventh. What this addon adds is that they now mean something operationally:
+
+- **The level is in every line and every payload**, at a fixed width in the console (`DotLog.level_column`, which honours `DotLog.level_style` so a process is consistent) and under whatever name each collector uses — `level`, `status`, `@l`, `severityNumber`, the RFC 5424 priority byte.
+- **In SQL it is two columns.** `level INTEGER` to sort and filter on, `level_name TEXT` to read, indexed as `(channel, level)`. Both, because `ORDER BY level_name` gives `ERROR < FATAL < INFO < WARN` — alphabetical and almost exactly the wrong order — and because a dashboard that has to `CASE WHEN` a string into a severity is a dashboard nobody writes twice. `DotLog.format_json` gained a numeric `severity` beside its `level` name for the same reason.
+- **FATAL flushes everything, synchronously where it can.** `DotLogRouter.flush_at_level` defaults to FATAL and starts a flush of every target from inside the dispatch. That is the operational content of the level: FATAL promises that a shutdown follows, so anything still buffered when one arrives is a record nobody will read — and the last few records before a process dies are the ones that explain why. The flush is *started*, not awaited, because this runs inside a log call inside gameplay; `shutdown()` is the path that waits.
+- **`log test fatal` is refused.** A console command that made the promise falsely would teach every reader of the log to stop believing the level, and the level is worth exactly what it is believed to be worth.
+
+`DotLog.at(level, …)` was added to dot-core for the cases where the level is genuinely data — a console test record, a config-driven severity, a bridge replaying records that arrived with their own level. The six named calls remain what code should use: a level written into the call is a level somebody can grep for. `Level.OFF` is refused there rather than silently dropped, because it is a threshold and not a severity.
+
 ## The one idea: the destination is not the interesting part
 
 Every hosted log service takes a batch of records over HTTP POST. Not one of them agrees with another about the envelope, the timestamp units, where the credential goes, or what a successful response looks like — and none of those differences is hard. What is hard is the same for all of them, and is the reason this is an addon rather than nine scripts:
@@ -103,7 +114,7 @@ godot --headless --path . --import
 find . -name '*.gd' -not -path './.godot/*' | while read f; do
     godot --headless --path . --check-only --script "res://${f#./}"
 done
-godot --headless --path . res://examples/log_selftest.tscn     # 389 checks
+godot --headless --path . res://examples/log_selftest.tscn     # 445 checks
 ```
 
 **Two engine errors in that output are produced on purpose** — `missing terminating ]` and `Parse JSON failed` — by the checks that a bad redaction pattern and a non-JSON collector response are *reported* rather than thrown. The suite says so in its own header. Neither is a failure, and the run exits 0.
@@ -112,8 +123,20 @@ The collector is a `FakeHttp` extending the real `DotHttp` (not duck-typed — t
 
 **What the suite cannot see:** whether any of these services actually accepts what is built for it. Every format is written to its published specification and read against it, which is not the same as having been sent. The shapes, the units, the escaping and the error handling are tested; the receiving end is not. Said out loud rather than left to be discovered.
 
+## Wiring, and what "wire it in" does not mean
+
+**Every addon in the family already logs through `DotLog`** — 465 files across the tree call it, and not one of them needed a line changed for any of this. That is the whole point of attaching as a sink rather than as an API.
+
+What was actually missing was a *destination*: nothing in the family placed a sink, so on a stock server every one of those records went to stdout and nowhere else, and stdout is gone the moment a supervisor rotates or restarts. So the wiring is at the process level, and it is three things:
+
+- **dot-server creates a log destination by default.** `log_sink_ref` used to resolve a node if the host had placed one and do nothing otherwise. It now applies the configured levels before the first line of the boot, resolves a host-placed node if there is one, and otherwise makes its own `DotLogSink` from `DotServerConfig.log_file_enabled`. A router placed there is recognised by duck typing — `describe_lines` and `flush_all`, never a name, because only dot-core may be a hard dependency — and gets the server's hostname and port as context tags. `status` reports where the log is going and at what level; `shutdown()` flushes it last, after the final state change.
+- **dot-server-deploy has a `log.yml`.** Level, per-channel levels, the engine-mirror threshold, and the file settings, mapped through `TmcConfig.BOOT_KEYS` onto the config properties. The level in particular cannot be a cvar: it has to apply *before* the console exists, because the boot it is being raised to diagnose is the one that happens first.
+- **`DotLogCommands` is the console half**, in the duck-typed shape both consoles already accept.
+
+The remaining gap is real and is not this: **108 files across the family declare a `const CHANNEL` and never log through it.** They intended to say something and do not, so an operator watching those subsystems sees nothing at all. That is a per-file judgement about what deserves a line and at what level — noise at the wrong level is worse than silence — rather than a mechanical pass, and [docs/detectors.md](../../docs/detectors.md) now has the grep that finds them. dot-inventory and dot-lighting were the first two done.
+
 ## Where this is going
 
-- **dot-console**: a `log` command over the memory target — tail, grep, level, and a target listing — is the obvious next thing, and needs nothing new here.
-- **dot-server-deploy**: a `logging:` block in `cfg/*.yml` mapping onto `DotLogConfig`, so a deployed server ships its records without any code.
-- **dot-server**: `describe_lines()` on the router belongs in the `status` output, and `is_healthy()` belongs in whatever answers a health check — a server whose shipper has been failing for an hour is a server nobody is watching.
+- **The 108 dead channels**, a few addons at a time, starting with the ones where silence costs an operator something: the stores, the reporters and the clients, where a failure is currently invisible.
+- **`is_healthy()` into a health check.** dot-server reports where its log goes; what it does not report is whether the shipper is still working, and a server whose collector has been refusing it for an hour is a server nobody is watching.
+- **The games**: each of the five places a `DotLogRouter` of its own for the standalone client case, where there is no dot-server in the process to make one.
