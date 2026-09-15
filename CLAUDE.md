@@ -131,12 +131,29 @@ What was actually missing was a *destination*: nothing in the family placed a si
 
 - **dot-server creates a log destination by default.** `log_sink_ref` used to resolve a node if the host had placed one and do nothing otherwise. It now applies the configured levels before the first line of the boot, resolves a host-placed node if there is one, and otherwise makes its own `DotLogSink` from `DotServerConfig.log_file_enabled`. A router placed there is recognised by duck typing — `describe_lines` and `flush_all`, never a name, because only dot-core may be a hard dependency — and gets the server's hostname and port as context tags. `status` reports where the log is going and at what level; `shutdown()` flushes it last, after the final state change.
 - **dot-server-deploy has a `log.yml`.** Level, per-channel levels, the engine-mirror threshold, and the file settings, mapped through `TmcConfig.BOOT_KEYS` onto the config properties. The level in particular cannot be a cvar: it has to apply *before* the console exists, because the boot it is being raised to diagnose is the one that happens first.
-- **`DotLogCommands` is the console half**, in the duck-typed shape both consoles already accept.
+- **`DotLogCommands` is the console half**, in the duck-typed shape both consoles already accept — and until recently that reached only a *client* console, which is the one kind of process with no log worth tailing. See below.
 
 The remaining gap is real and is not this: **108 files across the family declare a `const CHANNEL` and never log through it.** They intended to say something and do not, so an operator watching those subsystems sees nothing at all. That is a per-file judgement about what deserves a line and at what level — noise at the wrong level is worse than silence — rather than a mechanical pass, and [docs/detectors.md](../../docs/detectors.md) now has the grep that finds them. dot-inventory and dot-lighting were the first two done.
+
+## `log` reaches a dedicated server now, and did not before
+
+`DotLogCommands` has `names`, `claims`, `execute`, `complete` and `help_for` — exactly the shape dot-console's `DotConsoleBridge` duck-types — and that was written down here as meaning it "plugs into a client console or a server console". Half of that was true. dot-console has `add_source`; **dot-server's `DotConsole` had no such thing**, only `register_command(DotConCommand)`, and naming `DotConCommand` from this addon would make dot-server a hard dependency of a project whose only dependency is dot-core.
+
+So the one kind of process that has a log worth tailing — a dedicated server, running headless, where nobody can reach the file — was the one kind that could not type `log status`, `log tail`, `log grep`, `log targets` or `log test`. Nothing could report it, because an absent command is an absent command: no error, no warning, and the first person to find out is an admin during an incident.
+
+The fix is in dot-server, not here: `DotConsole.add_source(source, permission, chat)` wraps every name a duck-typed source claims in a real `DotConCommand`, so it gets the permission check, the RCON gate, the chat gate, the audit line, `cmdlist`, `help`, aliases and completion — and there is still exactly one place a command runs. **Not one line of this addon changed**, which is the property the duck-typed shape was for.
+
+```gdscript
+# in the host, with dot-server present:
+server.console.add_source(DotLogCommands.new(router), DotAdminFlags.GENERIC)
+```
+
+dot-server-deploy does exactly that for every server it runs, and `./server check` fails if `log` is missing from a server that booted with a router.
+
+**And `complete` finally has somewhere to arrive.** This object's multi-word completion — the eight subcommand names, and the six level names for `log level` and `log test`, which is the completion that actually saves typing because nobody remembers whether a logger spells it `warn` or `warning` — was unreachable from both consoles at once. dot-console's panel returned early from `_complete()` on any space in the input box, and dot-server's `complete()` matched the partial against command names only. Both are fixed in their own repositories; the contract they now share is the one this file already assumed: **a candidate is a whole command line**, because the box is replaced with whatever is picked.
 
 ## Where this is going
 
 - **The 108 dead channels**, a few addons at a time, starting with the ones where silence costs an operator something: the stores, the reporters and the clients, where a failure is currently invisible.
 - **`is_healthy()` into a health check.** dot-server reports where its log goes; what it does not report is whether the shipper is still working, and a server whose collector has been refusing it for an hour is a server nobody is watching.
-- **The games**: each of the five places a `DotLogRouter` of its own for the standalone client case, where there is no dot-server in the process to make one.
+- **The games**: each of the five places a `DotLogRouter` of its own for the standalone client case, where there is no dot-server in the process to make one. The dedicated-server case is done — dot-server-deploy builds one for all of them.

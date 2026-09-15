@@ -130,6 +130,12 @@ Adding another is one small file — build the body, name the path and the heade
 console.add_source(DotConsoleBridge.wrap(DotLogCommands.new(router), "log"))
 ```
 
+On a **dedicated server**, dot-server's own console takes the same object directly — it duck-types the identical shape, so nothing here is named on either side:
+
+```gdscript
+server.console.add_source(DotLogCommands.new(router), DotAdminFlags.GENERIC)
+```
+
 ```
 log                      what the logger is doing
 log tail [n]             the last n records, from the memory ring
