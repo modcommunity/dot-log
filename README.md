@@ -165,6 +165,6 @@ godot --headless --path . res://examples/log_selftest.tscn
 
 The suite runs 445 checks against a fake collector and a fake database driver, and needs neither a network nor an extension installed.
 
-## License
+## Licence
 
 MIT. See [LICENSE](LICENSE).
