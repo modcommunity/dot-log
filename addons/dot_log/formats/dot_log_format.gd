@@ -19,7 +19,9 @@ extends Resource
 ## rejected, and a shipper that trusts the status code drops that batch and reports
 ## itself healthy for as long as the mistake lasts.
 
-const CHANNEL := "log.format"
+# No log channel: a pure encoder from a record to bytes, called from inside a target,
+# which is itself inside a log call -- so it must not log, for the reason DotLogTarget
+# gives, and it has nothing outside the process to fail against anyway.
 
 ## The credential, whatever this service calls it. Never logged, never sent anywhere but
 ## its own endpoint, and refused from the environment and the command line by

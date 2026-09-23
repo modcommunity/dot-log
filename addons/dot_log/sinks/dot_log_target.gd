@@ -25,7 +25,9 @@ extends Resource
 ## A [Resource] so that a project can build its logging in the inspector, save it as a
 ## [code].tres[/code], and give every one of its servers the same one.
 
-const CHANNEL := "log.target"
+# No log channel, and there must never be one: a target runs inside a log call, and a
+# target that logged would re-enter the router (the second rule above). Its failures are
+# returned and reported through health(), which DotLogRouter surfaces.
 
 ## Short name, for [method describe] and for the console listing. Unique within a router.
 @export var target_name: String = "target"
