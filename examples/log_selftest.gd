@@ -14,8 +14,16 @@ extends Node
 
 const CHECKS := 445
 
+## Sections entered against sections that ran to their last line, and against this. A
+## runtime error inside a section aborts that function and nothing says so; a section that
+## bailed out early after a failed guard is counted as not finished on purpose. The CHECKS
+## total is the other half — see docs/testing.md.
+const SECTIONS := 26
+
 var _passed := 0
 var _failed := 0
+var _entered := 0
+var _completed := 0
 
 
 ## A DotHttp that answers from a script instead of from the network.
@@ -170,7 +178,7 @@ func _parse(text: String) -> Variant:
 # --- Event ------------------------------------------------------------------
 
 func _test_event() -> void:
-	_line("event")
+	_section("event")
 
 	var record: Dictionary = _record(DotLog.Level.WARN, "vote", "not enough players")
 	var event: Dictionary = DotLogEvent.from_record(record)
@@ -207,10 +215,11 @@ func _test_event() -> void:
 	_check("but not the channel", key != DotLogEvent.repeat_key(_event(DotLog.Level.INFO, "chat", "same")))
 
 	_line("")
+	_done()
 
 
 func _test_event_values() -> void:
-	_line("event values")
+	_section("event values")
 
 	_check("a string survives", DotLogEvent.json_value("x") == "x")
 	_check("an int survives", DotLogEvent.json_value(4) == 4)
@@ -253,12 +262,13 @@ func _test_event_values() -> void:
 	_check("and can leave the time out", not DotLogEvent.text_line(event, false).begins_with("2"))
 
 	_line("")
+	_done()
 
 
 # --- Redactor ---------------------------------------------------------------
 
 func _test_redactor() -> void:
-	_line("redactor")
+	_section("redactor")
 
 	var redactor: DotLogRedactor = DotLogRedactor.new()
 	var compiled: DotResult = redactor.compile()
@@ -311,12 +321,13 @@ func _test_redactor() -> void:
 	_check("an uncompilable pattern is reported, not thrown", not bad.compile().ok)
 
 	_line("")
+	_done()
 
 
 # --- Gate -------------------------------------------------------------------
 
 func _test_gate() -> void:
-	_line("gate")
+	_section("gate")
 
 	var gate: DotLogGate = DotLogGate.new()
 	gate.min_level = DotLog.Level.WARN
@@ -359,10 +370,11 @@ func _test_gate() -> void:
 	_check("and describes itself", limited.describe().has("min_level"))
 
 	_line("")
+	_done()
 
 
 func _test_gate_dedupe() -> void:
-	_line("gate deduplication")
+	_section("gate deduplication")
 
 	var gate: DotLogGate = DotLogGate.new()
 	gate.dedupe_window_sec = 30.0
@@ -409,12 +421,13 @@ func _test_gate_dedupe() -> void:
 	_check("the tracking table is bounded", int(bounded.stats()["tracked"]) <= 16, null, str(bounded.stats()["tracked"]))
 
 	_line("")
+	_done()
 
 
 # --- Buffer -----------------------------------------------------------------
 
 func _test_buffer() -> void:
-	_line("buffer")
+	_section("buffer")
 
 	var buffer: DotLogBuffer = DotLogBuffer.new(4)
 	for i: int in range(4):
@@ -464,12 +477,13 @@ func _test_buffer() -> void:
 	_check("and describes itself", DotLogBuffer.new(8).describe().has("high_water"))
 
 	_line("")
+	_done()
 
 
 # --- Memory target ----------------------------------------------------------
 
 func _test_memory_target() -> void:
-	_line("memory target")
+	_section("memory target")
 
 	var memory: DotLogTargetMemory = DotLogTargetMemory.new(4)
 	memory.open()
@@ -508,12 +522,13 @@ func _test_memory_target() -> void:
 	_check("it describes itself", memory.describe().has("capacity"))
 
 	_line("")
+	_done()
 
 
 # --- File target ------------------------------------------------------------
 
 func _test_file_target() -> void:
-	_line("file target")
+	_section("file target")
 
 	var dir: String = "user://selftest-logs"
 	DotPaths.remove_tree(dir)
@@ -589,12 +604,13 @@ func _test_file_target() -> void:
 
 	DotPaths.remove_tree(dir)
 	_line("")
+	_done()
 
 
 # --- Syslog -----------------------------------------------------------------
 
 func _test_syslog_format() -> void:
-	_line("syslog")
+	_section("syslog")
 
 	var syslog: DotLogTargetSyslog = DotLogTargetSyslog.new("127.0.0.1", 514)
 	syslog.host_name = "eu-1"
@@ -652,12 +668,13 @@ func _test_syslog_format() -> void:
 	_check("it describes itself", syslog.describe().has("transport"))
 
 	_line("")
+	_done()
 
 
 # --- SQL --------------------------------------------------------------------
 
 func _test_sql_target() -> void:
-	_line("sql target")
+	_section("sql target")
 
 	_check("the schema quotes an identifier", DotLogSqlSchema.quote_identifier("dot_log", DotLogSqlSchema.Dialect.SQLITE) == "\"dot_log\"")
 	_check("and refuses one it cannot quote", not DotLogSqlSchema.quote_identifier("a\"b; DROP", DotLogSqlSchema.Dialect.SQLITE).contains("DROP;"))
@@ -733,12 +750,13 @@ func _test_sql_target() -> void:
 	_check("it describes itself", sql.describe().has("inserted"))
 
 	_line("")
+	_done()
 
 
 # --- HTTP -------------------------------------------------------------------
 
 func _test_http_target() -> void:
-	_line("http target")
+	_section("http target")
 
 	var http: FakeHttp = FakeHttp.new()
 	var format: DotLogFormatNdjson = DotLogFormatNdjson.new()
@@ -819,12 +837,13 @@ func _test_http_target() -> void:
 	no_endpoint_http.free()
 
 	_line("")
+	_done()
 
 
 # --- Formats ----------------------------------------------------------------
 
 func _test_format_ndjson() -> void:
-	_line("format: ndjson")
+	_section("format: ndjson")
 
 	var format: DotLogFormatNdjson = DotLogFormatNdjson.new()
 	format.token = "secret"
@@ -847,10 +866,11 @@ func _test_format_ndjson() -> void:
 	_check("and changes the content type", format.content_type() == "application/json")
 
 	_line("")
+	_done()
 
 
 func _test_format_loki() -> void:
-	_line("format: loki")
+	_section("format: loki")
 
 	var format: DotLogFormatLoki = DotLogFormatLoki.new()
 	format.token = "t"
@@ -888,10 +908,11 @@ func _test_format_loki() -> void:
 	_check("a 503 is retryable", format.interpret({"status": 503, "body_text": ""}).is_retryable())
 
 	_line("")
+	_done()
 
 
 func _test_format_elastic() -> void:
-	_line("format: elasticsearch")
+	_section("format: elasticsearch")
 
 	var format: DotLogFormatElastic = DotLogFormatElastic.new()
 	format.index = "dot-logs-%Y.%m.%d"
@@ -932,10 +953,11 @@ func _test_format_elastic() -> void:
 	_check("a 200 that is not the bulk response is a failure", not format.interpret({"status": 200, "body_text": "<html>login</html>"}).ok)
 
 	_line("")
+	_done()
 
 
 func _test_format_splunk() -> void:
-	_line("format: splunk")
+	_section("format: splunk")
 
 	var format: DotLogFormatSplunk = DotLogFormatSplunk.new()
 	format.token = "hec-token"
@@ -961,10 +983,11 @@ func _test_format_splunk() -> void:
 	_check("a 403 says the token was refused", not auth.ok and auth.code() == DotError.CODE_AUTH)
 
 	_line("")
+	_done()
 
 
 func _test_format_datadog() -> void:
-	_line("format: datadog")
+	_section("format: datadog")
 
 	var format: DotLogFormatDatadog = DotLogFormatDatadog.new()
 	format.token = "dd"
@@ -991,10 +1014,11 @@ func _test_format_datadog() -> void:
 	_check("a 403 mentions the region", not forbidden.ok and forbidden.error.detail.contains("region"))
 
 	_line("")
+	_done()
 
 
 func _test_format_seq() -> void:
-	_line("format: seq")
+	_section("format: seq")
 
 	var format: DotLogFormatSeq = DotLogFormatSeq.new()
 	format.token = "seq-key"
@@ -1025,10 +1049,11 @@ func _test_format_seq() -> void:
 	_check("a 400 is invalid", format.interpret({"status": 400, "body_text": "bad"}).code() == DotError.CODE_INVALID)
 
 	_line("")
+	_done()
 
 
 func _test_format_gelf() -> void:
-	_line("format: gelf")
+	_section("format: gelf")
 
 	var format: DotLogFormatGelf = DotLogFormatGelf.new()
 	var doc: Dictionary = format.message_for(
@@ -1058,10 +1083,11 @@ func _test_format_gelf() -> void:
 	_check("a 400 mentions the usual cause", format.interpret({"status": 400, "body_text": ""}).error.detail.contains("short_message"))
 
 	_line("")
+	_done()
 
 
 func _test_format_otlp() -> void:
-	_line("format: otlp")
+	_section("format: otlp")
 
 	var format: DotLogFormatOtlp = DotLogFormatOtlp.new()
 	var body: Variant = _parse(format.build([
@@ -1102,10 +1128,11 @@ func _test_format_otlp() -> void:
 	_check("a plain 200 is success", format.interpret({"status": 200, "body_text": "{}"}).ok)
 
 	_line("")
+	_done()
 
 
 func _test_format_sentry() -> void:
-	_line("format: sentry")
+	_section("format: sentry")
 
 	var format: DotLogFormatSentry = DotLogFormatSentry.new()
 	format.dsn = "https://abc123@o1.ingest.example.com/4505"
@@ -1159,12 +1186,13 @@ func _test_format_sentry() -> void:
 	_check("without a DSN there is no endpoint", no_dsn.endpoint_override() == "")
 
 	_line("")
+	_done()
 
 
 # --- Router -----------------------------------------------------------------
 
 func _test_router() -> void:
-	_line("router")
+	_section("router")
 
 	var router: DotLogRouter = DotLogRouter.new()
 	router.autostart = false
@@ -1255,10 +1283,11 @@ func _test_router() -> void:
 	DotPaths.remove_tree("user://selftest-router")
 	DotLog.set_level(DotLog.Level.ERROR)
 	_line("")
+	_done()
 
 
 func _test_router_reentrancy() -> void:
-	_line("router reentrancy")
+	_section("router reentrancy")
 
 	var router: DotLogRouter = DotLogRouter.new()
 	router.autostart = false
@@ -1279,6 +1308,7 @@ func _test_router_reentrancy() -> void:
 	router.queue_free()
 	DotLog.set_level(DotLog.Level.ERROR)
 	_line("")
+	_done()
 
 
 ## A target that does exactly the forbidden thing: logs from inside write().
@@ -1298,7 +1328,7 @@ class LoudTarget extends DotLogTarget:
 # --- Config -----------------------------------------------------------------
 
 func _test_config() -> void:
-	_line("config")
+	_section("config")
 
 	var config: DotLogConfig = DotLogConfig.new()
 	_check("the defaults validate", config.validate().ok)
@@ -1372,10 +1402,11 @@ func _test_config() -> void:
 	_check("and an unknown name is null", config.make_format() == null)
 
 	_line("")
+	_done()
 
 
 func _test_config_builds() -> void:
-	_line("config builds a router")
+	_section("config builds a router")
 
 	var config: DotLogConfig = DotLogConfig.new()
 	config.service = "arena"
@@ -1430,12 +1461,13 @@ func _test_config_builds() -> void:
 	DotPaths.remove_tree("user://selftest-config")
 	DotLog.set_level(DotLog.Level.ERROR)
 	_line("")
+	_done()
 
 
 # --- Levels -----------------------------------------------------------------
 
 func _test_levels() -> void:
-	_line("levels")
+	_section("levels")
 
 	_check("there are six, and OFF", DotLog.Level.OFF == 6 and DotLog.LEVEL_NAMES.size() == 7)
 	_check("in severity order", DotLog.Level.TRACE < DotLog.Level.DEBUG and DotLog.Level.DEBUG < DotLog.Level.INFO and DotLog.Level.INFO < DotLog.Level.WARN and DotLog.Level.WARN < DotLog.Level.ERROR and DotLog.Level.ERROR < DotLog.Level.FATAL)
@@ -1485,12 +1517,13 @@ func _test_levels() -> void:
 	DotLog.set_level(saved_level)
 
 	_line("")
+	_done()
 
 
 # --- Console commands -------------------------------------------------------
 
 func _test_commands() -> void:
-	_line("log command")
+	_section("log command")
 
 	var router: DotLogRouter = DotLogRouter.new()
 	router.autostart = false
@@ -1564,9 +1597,20 @@ func _test_commands() -> void:
 	router.queue_free()
 	DotLog.set_level(DotLog.Level.ERROR)
 	_line("")
+	_done()
 
 
 # --- Harness ----------------------------------------------------------------
+
+func _section(title: String) -> void:
+	_entered += 1
+	print(title)
+
+
+## A section reached its last line. See [constant SECTIONS].
+func _done() -> void:
+	_completed += 1
+
 
 func _check(what: String, passed: bool, res: DotResult = null, note: String = "") -> void:
 	if passed:
@@ -1589,6 +1633,13 @@ func _finish() -> void:
 
 	await get_tree().process_frame
 
+	print("%d of %d sections ran to their last line" % [_completed, _entered])
+	if _entered != SECTIONS or _completed != _entered:
+		print("ERROR: %d sections entered and %d completed, %d expected. One aborted or was skipped." % [
+			_entered, _completed, SECTIONS
+		])
+		get_tree().quit(1)
+		return
 	# The total the section counter cannot be. A runtime error inside a section aborts
 	# that function, and a section counter is satisfied because the section had already
 	# announced itself. See docs/testing.md.
