@@ -28,7 +28,8 @@ extends Resource
 ## a quiet server from a gagged one. A gap in a log that does not say it is a gap is the
 ## thing this whole class is trying not to produce.
 
-const CHANNEL := "log.gate"
+# No `const CHANNEL`. A gate sits inside the log pipeline, so a record from here would go
+# back through the gate that raised it; what it drops it reports as a synthetic summary.
 
 ## Minimum level to pass. Independent of [DotLog]'s own threshold, which has already
 ## been applied — this can only ever narrow it further.
