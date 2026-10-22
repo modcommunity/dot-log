@@ -12,7 +12,8 @@ extends DotConfig
 ## genuinely needs two collectors adds the second target in code, where a second one
 ## belongs.
 ##
-## Layered like every other [DotConfig]: exported defaults, then a JSON file, then
+## Layered like every other [DotConfig]: exported defaults, then a JSON file (or [method load_cfg]'s
+## `cfg/addons/dot_log/log.yml` and `cfg/server/dot_log/log.yml`), then
 ## [code]DOT_LOG_*[/code] in the environment, then [code]--log-*[/code] on the command
 ## line. Which means a server started with [code]--log-level debug --log-remote-enabled
 ## true[/code] ships debug records to the collector for one run without any file being
@@ -27,6 +28,9 @@ extends DotConfig
 const LEVEL_KEYS: Array[String] = [
 	"trace", "debug", "info", "warn", "error", "fatal", "off",
 ]
+
+## The addon name [DotAddonConfig] turns into the folder `dot_log`.
+const CFG_ADDON := "dot-log"
 
 @export_group("Levels")
 
@@ -185,6 +189,46 @@ func cli_prefix() -> String:
 
 func sensitive_keys() -> PackedStringArray:
 	return PackedStringArray(["remote_token", "sentry_dsn"])
+
+
+## Applies [param file_name] from `cfg/addons/dot_log/`, then the operator's `cfg/server/dot_log/`.
+## A flat [param legacy_dir]/[param file_name] is still read (one WARN) while no new copy exists.
+## Secrets stay file-only: the environment and command line still refuse them.
+func apply_cfg_file(file_name: String = "log.yml", legacy_dir: String = "res://cfg") -> DotResult:
+	var layers := DotAddonConfig.file_layers(CFG_ADDON, file_name)
+	var newest := (
+		layers[layers.size() - 1] if not layers.is_empty()
+		else DotAddonConfig.write_dir_for(CFG_ADDON).path_join(file_name)
+	)
+	var old_path := legacy_dir.path_join(file_name) if legacy_dir != "" else ""
+	if old_path != "" and DotCfgLegacy.find(old_path, newest) == old_path:
+		layers = PackedStringArray([old_path])
+
+	var applied := PackedStringArray()
+	for path in layers:
+		var parsed := DotYaml.parse_file(path)
+		if not parsed.ok:
+			return parsed.wrap("Could not read '%s'." % path)
+		if parsed.value == null:
+			continue
+		if not (parsed.value is Dictionary):
+			return DotResult.fail(DotError.CODE_PARSE, "'%s' must hold a mapping at the top level." % path)
+		applied.append_array(apply_dictionary(parsed.value as Dictionary, path))
+	return DotResult.success(applied)
+
+
+## [method apply_cfg_file], then `DOT_LOG_*`, `--log-*` and validation: [method DotConfig.load_layered] for the yml layout.
+func load_cfg(file_name: String = "log.yml", legacy_dir: String = "res://cfg") -> DotResult:
+	unknown_keys = PackedStringArray()
+	var file_res := apply_cfg_file(file_name, legacy_dir)
+	if not file_res.ok:
+		return file_res
+	apply_env()
+	apply_cli()
+	var valid := validate()
+	if not valid.ok:
+		return valid.wrap("Configuration is invalid.")
+	return DotResult.success(self)
 
 
 func validate() -> DotResult:

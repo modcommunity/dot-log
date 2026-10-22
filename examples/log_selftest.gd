@@ -12,13 +12,13 @@ extends Node
 ## godot --headless --path . res://examples/log_selftest.tscn
 ## [/codeblock]
 
-const CHECKS := 445
+const CHECKS := 452
 
 ## Sections entered against sections that ran to their last line, and against this. A
 ## runtime error inside a section aborts that function and nothing says so; a section that
 ## bailed out early after a failed guard is counted as not finished on purpose. The CHECKS
 ## total is the other half — see docs/testing.md.
-const SECTIONS := 26
+const SECTIONS := 27
 
 var _passed := 0
 var _failed := 0
@@ -136,6 +136,7 @@ func _run() -> void:
 	await _test_router()
 	await _test_router_reentrancy()
 	_test_config()
+	_test_cfg_layout()
 	await _test_config_builds()
 	await _test_commands()
 
@@ -1403,6 +1404,52 @@ func _test_config() -> void:
 
 	_line("")
 	_done()
+
+
+func _test_cfg_layout() -> void:
+	_section("log.yml: cfg/addons/dot_log wins over the flat file, cfg/server/dot_log wins over both")
+
+	var legacy := "user://dot_log_selftest_legacy"
+	var addon_dir := "user://cfg/addons/dot_log"
+	var server_dir := "user://cfg/server/dot_log"
+	DotPaths.remove_tree(addon_dir)
+	DotPaths.remove_tree(server_dir)
+	DotPaths.remove_tree(legacy)
+	DotCfgLegacy.reset()
+
+	_write_text(legacy.path_join("log.yml"), "level: debug\nservice: old\n")
+	var config := DotLogConfig.new()
+	var res := config.load_cfg("log.yml", legacy)
+	_check("only the flat file: it is still read", res.ok and config.level == "debug", res)
+	_check("and warned once", DotCfgLegacy.warned_count() == 1)
+	DotLogConfig.new().load_cfg("log.yml", legacy)
+	_check("a second load does not warn again", DotCfgLegacy.warned_count() == 1)
+
+	_write_text(addon_dir.path_join("log.yml"), "level: warn\n")
+	config = DotLogConfig.new()
+	res = config.load_cfg("log.yml", legacy)
+	_check("the new path wins over the flat file", res.ok and config.level == "warn", res)
+	_check("and the two are never merged", config.service == "")
+
+	_write_text(server_dir.path_join("log.yml"), "level: error\nremote_token: abc\n")
+	config = DotLogConfig.new()
+	res = config.load_cfg("log.yml", legacy)
+	_check("the operator's server layer wins", res.ok and config.level == "error", res)
+	_check("a secret in a file is read", config.remote_token == "abc")
+
+	DotPaths.remove_tree(addon_dir)
+	DotPaths.remove_tree(server_dir)
+	DotPaths.remove_tree(legacy)
+	DotCfgLegacy.reset()
+	_line("")
+	_done()
+
+
+func _write_text(path: String, text: String) -> void:
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_string(text)
+	f.close()
 
 
 func _test_config_builds() -> void:
