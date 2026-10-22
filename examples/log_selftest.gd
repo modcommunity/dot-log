@@ -12,7 +12,7 @@ extends Node
 ## godot --headless --path . res://examples/log_selftest.tscn
 ## [/codeblock]
 
-const CHECKS := 454
+const CHECKS := 457
 
 ## Sections entered against sections that ran to their last line, and against this. A
 ## runtime error inside a section aborts that function and nothing says so; a section that
@@ -1436,6 +1436,25 @@ func _test_cfg_layout() -> void:
 	res = config.load_cfg("log.yml", legacy)
 	_check("the operator's server layer wins", res.ok and config.level == "error", res)
 	_check("a secret in a file is read", config.remote_token == "abc")
+
+	var game_dir := "user://cfg/game/mg-test/dot_log"
+	var server_game_dir := "user://cfg/server/game/mg-test/dot_log"
+	DotAddonConfig.game = "mg-test"
+	_write_text(game_dir.path_join("log.yml"), "level: trace\n")
+	config = DotLogConfig.new()
+	res = config.load_cfg("log.yml", legacy)
+	_check("the game tier sits between the addon's and the operator's", res.ok and config.level == "error", res)
+	DotPaths.remove_tree(server_dir)
+	config = DotLogConfig.new()
+	res = config.load_cfg("log.yml", legacy)
+	_check("and wins over the addon's own", res.ok and config.level == "trace", res)
+	_write_text(server_game_dir.path_join("log.yml"), "level: fatal\n")
+	config = DotLogConfig.new()
+	res = config.load_cfg("log.yml", legacy)
+	_check("the operator's per-game tier wins over the game's", res.ok and config.level == "fatal", res)
+	DotAddonConfig.game = ""
+	DotPaths.remove_tree("user://cfg/game/mg-test")
+	DotPaths.remove_tree("user://cfg/server/game/mg-test")
 
 	DotPaths.remove_tree(server_dir)
 	DotPaths.remove_tree(legacy)

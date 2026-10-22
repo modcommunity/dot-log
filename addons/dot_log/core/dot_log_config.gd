@@ -13,7 +13,8 @@ extends DotConfig
 ## belongs.
 ##
 ## Layered like every other [DotConfig]: exported defaults, then a JSON file (or [method load_cfg]'s
-## `cfg/addons/dot_log/log.yml` and `cfg/server/addons/dot_log/log.yml`), then
+## `cfg/addons/dot_log/log.yml`, `cfg/game/<game>/dot_log/` and the operator's `cfg/server/addons/dot_log/` and
+## `cfg/server/game/<game>/dot_log/`), then
 ## [code]DOT_LOG_*[/code] in the environment, then [code]--log-*[/code] on the command
 ## line. Which means a server started with [code]--log-level debug --log-remote-enabled
 ## true[/code] ships debug records to the collector for one run without any file being
