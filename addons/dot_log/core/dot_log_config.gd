@@ -13,7 +13,7 @@ extends DotConfig
 ## belongs.
 ##
 ## Layered like every other [DotConfig]: exported defaults, then a JSON file (or [method load_cfg]'s
-## `cfg/addons/dot_log/log.yml` and `cfg/server/dot_log/log.yml`), then
+## `cfg/addons/dot_log/log.yml` and `cfg/server/addons/dot_log/log.yml`), then
 ## [code]DOT_LOG_*[/code] in the environment, then [code]--log-*[/code] on the command
 ## line. Which means a server started with [code]--log-level debug --log-remote-enabled
 ## true[/code] ships debug records to the collector for one run without any file being
@@ -191,7 +191,7 @@ func sensitive_keys() -> PackedStringArray:
 	return PackedStringArray(["remote_token", "sentry_dsn"])
 
 
-## Applies [param file_name] from `cfg/addons/dot_log/`, then the operator's `cfg/server/dot_log/`.
+## Applies [param file_name] from `cfg/addons/dot_log/`, then the operator's `cfg/server/addons/dot_log/`.
 ## A flat [param legacy_dir]/[param file_name] is still read (one WARN) while no new copy exists.
 ## Secrets stay file-only: the environment and command line still refuse them.
 func apply_cfg_file(file_name: String = "log.yml", legacy_dir: String = "res://cfg") -> DotResult:

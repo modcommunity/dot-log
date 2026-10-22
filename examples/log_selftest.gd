@@ -12,7 +12,7 @@ extends Node
 ## godot --headless --path . res://examples/log_selftest.tscn
 ## [/codeblock]
 
-const CHECKS := 452
+const CHECKS := 454
 
 ## Sections entered against sections that ran to their last line, and against this. A
 ## runtime error inside a section aborts that function and nothing says so; a section that
@@ -1407,11 +1407,11 @@ func _test_config() -> void:
 
 
 func _test_cfg_layout() -> void:
-	_section("log.yml: cfg/addons/dot_log wins over the flat file, cfg/server/dot_log wins over both")
+	_section("log.yml: cfg/addons/dot_log wins over the flat file, cfg/server/addons/dot_log wins over both")
 
 	var legacy := "user://dot_log_selftest_legacy"
 	var addon_dir := "user://cfg/addons/dot_log"
-	var server_dir := "user://cfg/server/dot_log"
+	var server_dir := "user://cfg/server/addons/dot_log"
 	DotPaths.remove_tree(addon_dir)
 	DotPaths.remove_tree(server_dir)
 	DotPaths.remove_tree(legacy)
@@ -1437,6 +1437,15 @@ func _test_cfg_layout() -> void:
 	_check("the operator's server layer wins", res.ok and config.level == "error", res)
 	_check("a secret in a file is read", config.remote_token == "abc")
 
+	DotPaths.remove_tree(server_dir)
+	DotPaths.remove_tree(legacy)
+	DotCfgLegacy.reset()
+	_write_text("user://cfg/server/dot_log/log.yml", "level: info\n")
+	config = DotLogConfig.new()
+	res = config.load_cfg("log.yml", legacy)
+	_check("the old cfg/server/dot_log/ still loads", res.ok and config.level == "info", res)
+	_check("and warns once", DotCfgLegacy.warned_count() == 1)
+	DotPaths.remove_tree("user://cfg/server/dot_log")
 	DotPaths.remove_tree(addon_dir)
 	DotPaths.remove_tree(server_dir)
 	DotPaths.remove_tree(legacy)
