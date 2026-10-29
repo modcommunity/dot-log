@@ -3,28 +3,8 @@ class_name DotLogTargetFile
 extends DotLogTarget
 
 ## Writes the log to a file on disk, rotating it so it cannot fill the volume.
-##
-## This is the target a dedicated server always has. Everything else here is optional;
-## a file on the machine that produced it is the one destination that keeps working when
-## the network, the collector and the account behind it do not, and it is where the
-## answer to "what happened last night" actually lives.
-##
-## [b]Buffered, never line-by-line.[/b] A busy server emits hundreds of lines a second
-## and a flush per line is a system call per line — on web it is an IndexedDB
-## transaction per line, which is catastrophic rather than merely slow. Lines accumulate
-## and go out on the router's flush, so the worst case is losing one flush interval of
-## log to a hard kill. [member flush_on_error] narrows that to zero for the lines that
-## actually matter.
-##
-## [b]Rotation opens a new file rather than renaming the old one.[/b] Renaming a file
-## that is open behaves differently on each of the five targets — Windows refuses it
-## outright — and the name already carries a sortable timestamp, so a directory listing
-## is in chronological order without the numbered-suffix dance.
-##
-## dot-core ships [DotLogSink], which is a smaller version of this. Both exist on
-## purpose: that one is what a project with no dependency but dot-core reaches for, this
-## one is the one that participates in the pipeline — a gate of its own, redaction
-## applied upstream, and the router's context on every line.
+## Buffered, never line-by-line (a flush per line is an IndexedDB transaction on web); [member flush_on_error] narrows the loss window for the lines that matter.
+## Rotation opens a new file rather than renaming an open one, which Windows refuses; the name carries a sortable timestamp.
 
 const SELF_CHANNEL := "log.file"
 
@@ -37,17 +17,13 @@ const SELF_CHANNEL := "log.file"
 @export var basename: String = "server"
 
 ## Start a new file each run instead of appending to the last one.
-##
-## On by default: interleaved runs in one file make "what happened last night" much
-## harder to answer than a directory listing does.
+## On by default: interleaved runs make "what happened last night" harder to answer.
 @export var new_file_per_run: bool = true
 
 @export_group("Format")
 
 ## One JSON object per line instead of the human format.
-##
-## For a file something else will read — a shipper tailing it, a script counting
-## errors. Off by default, because the primary reader is a person over SSH.
+## For a file something else will read; off by default, since the primary reader is a person over SSH.
 @export var json_lines: bool = false
 
 ## Prefix for field names in JSON output, so a field cannot collide with an envelope
@@ -65,9 +41,7 @@ const SELF_CHANNEL := "log.file"
 @export var daily: bool = false
 
 ## Files to keep, oldest deleted first. 0 keeps everything.
-##
-## [b]Not zero by default.[/b] A log directory with no bound is the most common way a
-## game server fills a disk, and a full disk stops the server rather than the logging.
+## Not zero by default: an unbounded log directory is the common way a game server fills a disk.
 @export var max_files: int = 10
 
 @export_group("Flushing")
@@ -76,9 +50,7 @@ const SELF_CHANNEL := "log.file"
 @export_range(1, 100000, 1) var max_buffered_lines: int = 256
 
 ## Write immediately on ERROR and above.
-##
-## The lines you most want after a crash are the ones written just before it, and those
-## are precisely the ones still in a buffer.
+## The lines wanted after a crash are the ones still in a buffer.
 @export var flush_on_error: bool = true
 
 var _buffer: PackedStringArray = PackedStringArray()
@@ -99,10 +71,7 @@ func _init(p_directory: String = "", p_basename: String = "") -> void:
 
 
 ## Context tags from the router, written into JSON lines.
-##
-## Not written into the human format: an admin reading their own server's log already
-## knows which server it is, and repeating five tags per line halves how much of the
-## message fits on screen.
+## Not in the human format: an admin knows which server it is, and five tags per line halve the readable message.
 func set_context(context: Dictionary) -> void:
 	_context = context
 
@@ -162,8 +131,6 @@ func file_path() -> String:
 func rotations() -> int:
 	return _rotations
 
-
-# --- Writing ---------------------------------------------------------------
 
 func _write_out() -> DotResult:
 	if _buffer.is_empty():

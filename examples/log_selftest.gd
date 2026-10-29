@@ -1,22 +1,12 @@
 extends "log_selftest_formats.gd"
 
 ## Exercises dot-log without a collector, a database or a socket.
-##
-## Everything here is the part that can be wrong on a machine with nothing installed:
-## what the bytes look like, what the gate lets through, what the buffer drops, and what
-## each target does when the thing it talks to says no. The drivers and the sockets are
-## faked one level above themselves — a fake [DotHttp] and a fake SQL driver — because
-## that seam is the whole reason both of them are pluggable.
-##
-## [codeblock]
-## godot --headless --path . res://examples/log_selftest.tscn
-## [/codeblock]
+## Covers the bytes, the gate, the buffer and each target's failure path; the HTTP and SQL seams are faked one level above themselves.
+## Run: [code]godot --headless --path . res://examples/log_selftest.tscn[/code]
 
 
 ## A DotHttp that answers from a script instead of from the network.
-##
-## Extends the real one rather than duck-typing it, because DotLogTargetHttp's field is
-## typed — and a fake that cannot be assigned is a fake that proves nothing.
+## Extends the real class because DotLogTargetHttp's field is typed; a fake that cannot be assigned proves nothing.
 class FakeHttp extends DotHttp:
 	var requests: Array[Dictionary] = []
 	var status: int = 200
@@ -220,8 +210,6 @@ func _test_event_values() -> void:
 	_done()
 
 
-# --- Redactor ---------------------------------------------------------------
-
 func _test_redactor() -> void:
 	_section("redactor")
 
@@ -278,8 +266,6 @@ func _test_redactor() -> void:
 	_line("")
 	_done()
 
-
-# --- Gate -------------------------------------------------------------------
 
 func _test_gate() -> void:
 	_section("gate")
@@ -379,8 +365,6 @@ func _test_gate_dedupe() -> void:
 	_done()
 
 
-# --- Buffer -----------------------------------------------------------------
-
 func _test_buffer() -> void:
 	_section("buffer")
 
@@ -435,8 +419,6 @@ func _test_buffer() -> void:
 	_done()
 
 
-# --- Memory target ----------------------------------------------------------
-
 func _test_memory_target() -> void:
 	_section("memory target")
 
@@ -479,8 +461,6 @@ func _test_memory_target() -> void:
 	_line("")
 	_done()
 
-
-# --- File target ------------------------------------------------------------
 
 func _test_file_target() -> void:
 	_section("file target")
@@ -562,8 +542,6 @@ func _test_file_target() -> void:
 	_done()
 
 
-# --- Syslog -----------------------------------------------------------------
-
 func _test_syslog_format() -> void:
 	_section("syslog")
 
@@ -625,8 +603,6 @@ func _test_syslog_format() -> void:
 	_line("")
 	_done()
 
-
-# --- SQL --------------------------------------------------------------------
 
 func _test_sql_target() -> void:
 	_section("sql target")
@@ -707,8 +683,6 @@ func _test_sql_target() -> void:
 	_line("")
 	_done()
 
-
-# --- HTTP -------------------------------------------------------------------
 
 func _test_http_target() -> void:
 	_section("http target")
@@ -794,8 +768,6 @@ func _test_http_target() -> void:
 	_line("")
 	_done()
 
-
-# --- Formats ----------------------------------------------------------------
 
 func _test_router() -> void:
 	_section("router")
@@ -930,8 +902,6 @@ class LoudTarget extends DotLogTarget:
 		# unbounded recursion and the process dies here.
 		DotLog.warn("loud", "I am writing a record")
 
-
-# --- Config -----------------------------------------------------------------
 
 func _test_config() -> void:
 	_section("config")
@@ -1144,8 +1114,6 @@ func _test_config_builds() -> void:
 	_done()
 
 
-# --- Levels -----------------------------------------------------------------
-
 func _test_levels() -> void:
 	_section("levels")
 
@@ -1199,8 +1167,6 @@ func _test_levels() -> void:
 	_line("")
 	_done()
 
-
-# --- Console commands -------------------------------------------------------
 
 func _test_commands() -> void:
 	_section("log command")

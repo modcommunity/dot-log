@@ -3,29 +3,8 @@ class_name DotLogRedactor
 extends Resource
 
 ## Removes the things that must not leave the process, before anything ships them.
-##
-## [b]This exists because the destinations are the problem, not the log.[/b] A rotating
-## file on a server an admin already owns can hold a session ticket; a hosted log service
-## with a web UI, a search index, ninety days of retention and a support team cannot, and
-## neither can the bug report somebody pastes into a public issue tracker. The moment
-## [DotLogRouter] can ship somewhere, "we log the auth header at DEBUG" stops being a
-## private decision.
-##
-## Two passes, because secrets arrive two ways:
-##
-## - [b]By key.[/b] A field called [code]token[/code] is a secret whatever its value, so
-##   the key list is the reliable half and the one to extend when you add a field.
-## - [b]By shape.[/b] A message interpolated by hand —
-##   [code]"GET /api?key=abc123 failed"[/code] — carries it in prose, where no key list
-##   can see it. That is what the patterns are for, and they are best-effort by
-##   construction: a redactor that promises to catch every secret in free text is lying.
-##
-## The honest rule the patterns cannot enforce, and which belongs in review instead:
-## [b]put values in fields, not in the message[/b]. A field can be redacted; a sentence
-## cannot.
-##
-## A [Resource] rather than a plain object so a project can save one as a [code].tres[/code]
-## and hand the same policy to every server it runs, and so the inspector can edit it.
+## Two passes: by key (reliable, extend it per field) and by shape (best-effort patterns for secrets interpolated into prose).
+## Put values in fields, not the message. A [Resource] so one policy can be saved as a [code].tres[/code] for every server.
 
 const CHANNEL := "log.redact"
 
@@ -43,21 +22,14 @@ const MASK := "<redacted>"
 ])
 
 ## Field names to drop entirely rather than mask.
-##
-## For values that are not secret but are large: a serialised map, a packet dump. They
-## cost quota at a hosted collector and nobody reads them there.
+## For large non-secret values (a serialised map, a packet dump) that only cost quota at a hosted collector.
 @export var drop_keys: PackedStringArray = PackedStringArray()
 
 ## Whether to scan message text as well as field values.
 @export var scan_messages: bool = true
 
 ## Whether to treat IPv4 addresses as personal data and mask them.
-##
-## [b]Off by default, and that is a deliberate position rather than an oversight.[/b] An
-## address is how an admin correlates a cheat report with a connection log and how a ban
-## gets justified afterwards; removing it from a dedicated server's own log breaks the
-## job the log exists for. Turn it on for a client build shipping to a hosted collector,
-## where the addresses are other people's and the operational need is absent.
+## Off by default on purpose: a server admin needs addresses to correlate cheat reports and justify bans. Turn on for client builds shipping to a hosted collector.
 @export var mask_ip_addresses: bool = false
 
 ## Whether to mask anything shaped like an email address.
@@ -67,10 +39,7 @@ const MASK := "<redacted>"
 @export var extra_patterns: PackedStringArray = PackedStringArray()
 
 ## How many leading characters of a masked value to keep.
-##
-## Zero is the safe default. Four is useful when the question is "which key is it"
-## rather than "what is it" — an id prefix is usually enough to tell two deployments
-## apart and is not enough to authenticate with.
+## Zero is safe; four tells "which key" without being enough to authenticate with.
 @export_range(0, 8, 1) var keep_prefix: int = 0
 
 var _patterns: Array[RegEx] = []
@@ -112,12 +81,9 @@ func compile() -> DotResult:
 	for source: String in sources:
 		var re: RegEx = RegEx.create_from_string(source)
 		if re == null or not re.is_valid():
-			# Both checks: create_from_string does not return null for a pattern it
-			# could not compile, it returns a RegEx whose is_valid() is false — and one
-			# of those matches nothing at all, silently, for the life of the process.
-			#
-			# A bad pattern must not take the logger down either: the caller keeps the
-			# patterns that did compile and is told which one did not.
+			# Both checks: create_from_string returns a RegEx with is_valid() false for a bad
+			# pattern, not null, and that matches nothing for the life of the process. The caller
+			# keeps the patterns that compiled and is told which one did not.
 			return DotResult.fail(
 				DotError.CODE_INVALID,
 				"A redaction pattern would not compile.",

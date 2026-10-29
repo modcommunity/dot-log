@@ -3,37 +3,13 @@ class_name DotLogRouter
 extends Node
 
 ## Attaches to [DotLog] once and fans every record out to the targets.
-##
-## This is the node a project places. [DotLog] stays exactly what it was — the thing
-## fifty-odd addons call, with no dependency on this one — and everything about where the
-## records go is decided here, in one place, at the host's discretion.
-##
-## [codeblock]
-## var router := DotLogRouter.new()
-## router.set_context({"service": "arena", "env": "prod", "host": "eu-1"})
-## router.add_target(DotLogTargetFile.new("user://logs", "arena"))
-## router.add_target(DotLogTargetMemory.new(512))
-## add_child(router)          # starts on _ready
-## [/codeblock]
-##
-## [b]Not an autoload, like everything else here.[/b] A process running a server and a
-## client — which is every listen server, and every headless test of one — has two of
-## these, with different targets and different context, and an autoload could not
-## express that.
-##
-## [b]The reentrancy guard is the load-bearing part of this file.[/b] A target that calls
-## [DotLog] from inside [method DotLogTarget.write] re-enters the sink it is being called
-## from, which calls the target, which logs again: a stack overflow that takes the
-## process down, from a diagnostic. It is not a hypothetical — the natural way to report
-## that a log file could not be opened is to log it. So [member _dispatching] is checked
-## before anything, and a record produced while dispatching is counted and dropped.
+## The node a project places; not an autoload, since a server and a client in one process need two.
+## Usage and the reentrancy guard are in docs/design.md; [member _dispatching] is checked first and records produced while dispatching are counted and dropped.
 
 const CHANNEL := "log.router"
 
 ## Emitted for every record after the targets have taken it.
-##
-## For UI that wants records live — a console, an admin overlay — without registering a
-## sink of its own. The payload is the enriched event, not [DotLog]'s raw record.
+## For live UI (a console, an overlay) without a sink of its own; the payload is the enriched event.
 signal routed(event: Dictionary)
 
 ## Emitted when a target's [method DotLogTarget.flush] fails, so a server can put its
@@ -43,42 +19,22 @@ signal target_failed(target_name: String, error: DotError)
 @export_group("Lifecycle")
 
 ## Attach to [DotLog] on [method Node._ready].
-##
-## Off for a router assembled in code that wants to add its targets first. [method start]
-## does it by hand.
+## Off for a router assembled in code that adds its targets first; [method start] does it by hand.
 @export var autostart: bool = true
 
 ## Flush every target the moment a record at this level arrives.
-##
-## [b]FATAL, and that is the level's whole operational meaning here.[/b] FATAL promises
-## that what follows the line is a shutdown, so anything still sitting in a buffer when
-## it arrives is a record that will never be written — and it is the last few records
-## before a process dies that explain why it died.
-##
-## The flush is started rather than awaited: this runs inside a log call, which runs
-## inside gameplay, and a log call that blocks on a network round trip has moved the
-## collector into the frame. A file target is synchronous and is therefore fully written
-## by the time this returns; a remote one gets its request started, which is as much as
-## can honestly be promised to a process that is about to stop existing. [method shutdown]
-## is the path that actually waits.
-##
-## Set it to [constant DotLog.Level.OFF] to disable.
+## FATAL promises a shutdown, so anything still buffered would never be written. The flush is started, not awaited, so a log call never blocks on the network ([method shutdown] waits).
+## Set to [constant DotLog.Level.OFF] to disable.
 @export var flush_at_level: DotLog.Level = DotLog.Level.FATAL
 
 ## Seconds between flushes.
-##
-## 2 seconds is a compromise: a shorter interval means more, smaller HTTP requests and
-## more file writes; a longer one is more log lost to a hard kill. Targets that need to
-## go sooner say so — see [member DotLogTargetHttp.send_immediately_above].
+## A compromise: shorter means more small requests and writes, longer loses more to a hard kill. See [member DotLogTargetHttp.send_immediately_above].
 @export_range(0.1, 300.0, 0.1) var flush_interval_sec: float = 2.0
 
 @export_group("Pipeline")
 
 ## Applied to every record before any target sees it. Null disables redaction.
-##
-## One redactor in front of all of them rather than one per target, because a secret
-## that must not reach a hosted collector must not reach the file either — the file gets
-## attached to bug reports.
+## One in front of all targets: a secret kept from the collector must not reach the file, which gets attached to bug reports.
 @export var redactor: DotLogRedactor = null
 
 ## Applied before the per-target gates. Null passes everything [DotLog] emitted.
@@ -90,30 +46,17 @@ signal target_failed(target_name: String, error: DotError)
 @export_group("DotLog")
 
 ## Set [member DotLog.print_to_stdout] on start. -1 leaves it alone.
-##
-## A server with a file target usually still wants stdout, because that is what the
-## process supervisor captures. A shipped client usually does not.
+## A server with a file target usually still wants stdout for its supervisor; a shipped client usually does not.
 @export_enum("leave:-1", "off:0", "on:1") var stdout_on_start: int = -1
 
 ## Set [member DotLog.mirror_min_level] on start, or -1 to leave it.
-##
-## [b]This is where the stack traces come from.[/b] [DotLog] mirrors serious records
-## through [method push_warning] / [method push_error] so they reach the editor's Errors
-## dock, and in a debug build the engine appends an [code]at:[/code] line and a full
-## GDScript backtrace to each one — with no way to turn that off per call. At WARN that
-## turns every recoverable, expected warning into eight lines of stderr that read like a
-## crash. ERROR is [DotLog]'s own default and the right one for a server; set it to
-## [constant DotLog.Level.WARN] while hunting where one particular warning comes from.
+## Mirroring uses push_warning/push_error, and a debug build appends a full backtrace to each. ERROR is right for a server; use WARN to hunt one warning.
 @export_enum(
 	"leave:-1", "trace:0", "debug:1", "info:2", "warn:3", "error:4", "fatal:5", "off:6"
 ) var mirror_min_level: int = -1
 
 ## Context tags attached to every shipped record: service, env, host, instance, version.
-##
-## Not written into the human file format — an admin reading their own server's log
-## already knows which server it is — but essential everywhere else, because a collector
-## holding four servers' records and no way to tell them apart is a collector nobody uses
-## twice.
+## Not in the human file format, but essential to a collector holding several servers' records.
 var context: Dictionary = {}
 
 var _sink: Callable
@@ -147,13 +90,8 @@ func _exit_tree() -> void:
 		stop()
 
 
-# --- Lifecycle -------------------------------------------------------------
-
 ## Opens every target and attaches to [DotLog].
-##
-## A target that fails to open is disabled and reported; the rest carry on. Logging that
-## degrades to fewer destinations is always better than logging that refuses to start,
-## because the second one takes the server with it.
+## A target that fails to open is disabled and reported; the rest carry on, since degraded logging beats a server that will not start.
 func start() -> DotResult:
 	if _started:
 		return DotResult.fail(DotError.CODE_STATE, "The log router is already started.")
@@ -205,12 +143,7 @@ func start() -> DotResult:
 
 
 ## Detaches from [DotLog] and closes every target, flushing what is buffered.
-##
-## [b]Synchronous, and that is a real limitation rather than an oversight.[/b] This runs
-## from [method Node._exit_tree], where the tree is coming down and awaiting a network
-## round trip is not something that can be relied on to complete. File, memory, syslog
-## and SQL targets write what they hold; an HTTP target loses whatever has not gone out.
-## Call [method shutdown] instead for a clean exit that waits.
+## Synchronous (it runs from _exit_tree, where awaiting a round trip is unreliable): an HTTP target loses what has not gone out. Use [method shutdown] to wait.
 func stop() -> void:
 	if _sink.is_valid():
 		DotLog.remove_sink(_sink)
@@ -232,11 +165,7 @@ func stop() -> void:
 
 
 ## Flushes everything and then stops. The clean path out of a process.
-##
-## [codeblock]
-## await router.shutdown()
-## get_tree().quit()
-## [/codeblock]
+## Usage: [code]await router.shutdown()[/code] before [code]get_tree().quit()[/code].
 func shutdown() -> void:
 	if not _started:
 		return
@@ -247,8 +176,6 @@ func shutdown() -> void:
 func is_started() -> bool:
 	return _started
 
-
-# --- Targets ---------------------------------------------------------------
 
 ## Adds a target and opens it. Returns the open result.
 func add_target(target: DotLogTarget) -> DotResult:
@@ -274,9 +201,7 @@ func remove_target(target: DotLogTarget) -> void:
 
 
 ## The first target with this name, or null.
-##
-## The parameter is not called `name`: this is a [Node], [Node] has a `name`, and
-## shadowing it is how a method quietly reads the node's own name instead.
+## The parameter is not called `name` because shadowing [Node]'s `name` quietly reads the node's own.
 func find_target(wanted: String) -> DotLogTarget:
 	for target: DotLogTarget in targets:
 		if target.target_name == wanted:
@@ -327,8 +252,6 @@ func _make_http() -> DotHttp:
 	return http
 
 
-# --- Context ---------------------------------------------------------------
-
 ## Replaces the context tags and pushes them to every target.
 func set_context(new_context: Dictionary) -> void:
 	context = new_context.duplicate()
@@ -346,8 +269,6 @@ func _push_context() -> void:
 		if target.has_method("set_context"):
 			target.call("set_context", context)
 
-
-# --- Records ---------------------------------------------------------------
 
 ## The sink [DotLog] calls. Never call this directly.
 func _ingest(record: Dictionary) -> void:
@@ -392,17 +313,12 @@ func _dispatch(event: Dictionary) -> void:
 
 
 ## Injects an event that did not come through [DotLog].
-##
-## For the records this addon makes about itself — dropped-record notices, repeat
-## summaries — which must not be logged normally, because they are produced from inside
-## the dispatch the guard above is protecting.
+## For dropped-record notices and repeat summaries, which are produced inside the dispatch the reentrancy guard protects.
 func inject(event: Dictionary) -> void:
 	if _dispatching:
 		return
 	_dispatch(event)
 
-
-# --- Flushing --------------------------------------------------------------
 
 func _on_flush_timer() -> void:
 	# Not awaited: a Timer's callback is not a coroutine and the flush may take longer
@@ -427,8 +343,6 @@ func flush_all() -> void:
 		if res != null and not res.ok:
 			target_failed.emit(target.target_name, res.error)
 
-
-# --- Diagnostics -----------------------------------------------------------
 
 func describe() -> Dictionary:
 	return {
@@ -468,10 +382,7 @@ func describe_lines() -> PackedStringArray:
 
 
 ## Whether every enabled target is currently working.
-##
-## The question a health endpoint asks. A server whose shipper has been failing for an
-## hour is a server nobody is watching, which is worth knowing separately from whether
-## the server itself is up.
+## The question a health endpoint asks: a shipper failing for an hour is worth knowing separately from the server being up.
 func is_healthy() -> bool:
 	for target: DotLogTarget in targets:
 		if not target.enabled:

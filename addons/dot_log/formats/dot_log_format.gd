@@ -3,30 +3,15 @@ class_name DotLogFormat
 extends Resource
 
 ## How a batch of records is written for one particular collector.
-##
-## [b]The transport is the same everywhere and the payload never is.[/b] Every hosted log
-## service takes a batch of records over HTTP POST; not one of them agrees with another
-## about the envelope, the timestamp units, where the credential goes, or what a
-## successful response looks like. So [DotLogTargetHttp] owns batching, retries, back
-## pressure and the queue — the parts that are genuinely common — and a format owns the
-## bytes and the headers.
-##
-## Adding a service is therefore one small file: build the body, name the path and the
-## header, and say what counts as success. Nothing else in the addon changes.
-##
-## [b]Read [method interpret] before writing one.[/b] A 200 is not a delivery. At least
-## one widely used collector returns HTTP 200 with a body saying every single record was
-## rejected, and a shipper that trusts the status code drops that batch and reports
-## itself healthy for as long as the mistake lasts.
+## [DotLogTargetHttp] owns batching, retries and the queue; a format owns the bytes, the headers and what counts as success.
+## Read [method interpret] before writing one: a 200 is not a delivery.
 
 # No log channel: a pure encoder from a record to bytes, called from inside a target,
 # which is itself inside a log call -- so it must not log, for the reason DotLogTarget
 # gives, and it has nothing outside the process to fail against anyway.
 
-## The credential, whatever this service calls it. Never logged, never sent anywhere but
-## its own endpoint, and refused from the environment and the command line by
-## [DotLogConfig] — argv and the environment are readable by other processes and both
-## end up in pasted bug reports.
+## The credential, whatever this service calls it.
+## Never logged; refused from the environment and command line by [DotLogConfig].
 @export var token: String = ""
 
 ## Extra headers, merged last, for a gateway in front of the collector.
@@ -50,10 +35,7 @@ func default_path() -> String:
 
 
 ## A complete URL that replaces the target's own, or empty to use the target's.
-##
-## For the services whose credential already names the host — an error tracker's DSN is
-## the whole address — so that a deployment configures one thing rather than two things
-## that can disagree.
+## For services whose credential already names the host (an error tracker's DSN), so one thing is configured, not two.
 func endpoint_override() -> String:
 	return ""
 
@@ -64,18 +46,13 @@ func headers() -> Dictionary:
 
 
 ## The batch as bytes.
-##
-## [param events] are in order, oldest first, and must not be modified — the caller
-## requeues this exact array if the send fails.
+## [param events] are oldest first and must not be modified: the caller requeues this exact array if the send fails.
 func build(_events: Array, _context: Dictionary) -> PackedByteArray:
 	return PackedByteArray()
 
 
 ## The most records this service accepts in one request.
-##
-## A real limit, not a preference: several of them reject an oversized batch outright,
-## and a shipper that keeps retrying a batch that can never be accepted stops shipping
-## anything at all.
+## A real limit: several services reject an oversized batch outright, and retrying one that can never be accepted stalls shipping.
 func max_batch() -> int:
 	return 500
 
@@ -86,18 +63,13 @@ func max_bytes() -> int:
 
 
 ## Whether the response really means the records were accepted.
-##
-## [param response] is [DotHttp]'s success value:
-## [code]{status, headers, body, body_text, attempts}[/code]. The default trusts a 2xx,
-## which is right for the services that are honest about it.
+## [param response] is [DotHttp]'s success value: [code]{status, headers, body, body_text, attempts}[/code]. The default trusts a 2xx.
 func interpret(_response: Dictionary) -> DotResult:
 	return DotResult.success(null)
 
 
 ## Whether this format wants breadcrumbs and would rather have one event than a batch.
-##
-## True only for the error trackers. It changes what [DotLogTargetHttp] sends: everything
-## for a log collector, only the records worth an alert for a tracker.
+## True only for the error trackers: [DotLogTargetHttp] then sends only the records worth an alert.
 func is_error_tracker() -> bool:
 	return false
 

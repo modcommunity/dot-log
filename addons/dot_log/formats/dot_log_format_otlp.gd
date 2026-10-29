@@ -2,33 +2,12 @@
 class_name DotLogFormatOtlp
 extends DotLogFormat
 
-## OpenTelemetry logs, over OTLP/HTTP with a JSON body.
-##
-## [b]The one format here that is not a product.[/b] Every collector on this list can
-## receive OTLP, and an OpenTelemetry Collector in front of them can fan one stream out
-## to several — so a deployment that expects to change its mind about where logs go, or
-## to send them to more than one place, should point at a collector and speak this.
-##
-## JSON rather than protobuf, and that is the whole reason this is implementable here:
-## OTLP specifies both, the wire semantics are identical, and Godot has no protobuf.
-## The JSON encoding is slightly larger and is accepted by every collector, which is the
-## right trade for a game server that is not sending millions of records a second.
-##
-## Two encoding rules that are specified and are not obvious:
-##
-## - [b]64-bit numbers are strings.[/b] Nanosecond timestamps do not survive a double,
-##   so the spec requires them quoted. This is the single most common OTLP JSON bug.
-## - [b]Every attribute value is a tagged union[/b] — [code]{"stringValue": "x"}[/code],
-##   [code]{"intValue": "4"}[/code] — not a bare value. A collector silently ignores an
-##   attribute it cannot decode, so the record arrives with its fields missing.
-##
-## Resource attributes carry the router's context and are sent once per batch rather
-## than per record, which is most of why this encoding is not as heavy as it looks.
+## OpenTelemetry logs over OTLP/HTTP with a JSON body (Godot has no protobuf).
+## Point at an OpenTelemetry Collector to fan out. Spec rules: 64-bit numbers are strings, and every attribute value is a tagged union such as [code]{"stringValue": "x"}[/code].
+## Resource attributes carry the router context, once per batch.
 
 ## The [code]service.name[/code] resource attribute. Overridden by the router context.
-##
-## Required by the specification in practice: a collector with no service name groups
-## everything under [code]unknown_service[/code], which defeats the point.
+## A collector with no service name groups everything under [code]unknown_service[/code].
 @export var service_name: String = "dot-server"
 
 ## The instrumentation scope name, which is how a backend tells our records from the ones

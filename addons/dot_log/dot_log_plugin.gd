@@ -2,13 +2,7 @@
 extends EditorPlugin
 
 ## Editor entry point for dot-log. Registers the router as an inspector type.
-##
-## No autoload. A process running a server and a client has two routers with different
-## targets and different context, and an autoload could hold only one of them.
-##
-## Only the [Node] is registered. Everything else here is a [Resource] with a
-## [code]class_name[/code], which the inspector already offers in any typed slot — a
-## custom type would put them in the "create node" dialog, where they do not belong.
+## No autoload: a server and a client in one process need two routers. Only the [Node] is registered; Resources already appear in typed slots.
 
 const _ICON := "res://addons/dot_log/icon_placeholder.svg"
 

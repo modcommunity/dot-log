@@ -3,27 +3,14 @@ class_name DotLogFormatLoki
 extends DotLogFormat
 
 ## Grafana Loki's push API.
-##
-## Loki indexes labels and not content, which makes it cheap to run and makes exactly one
-## thing your problem: [b]label cardinality[/b]. Every distinct combination of label
-## values is a separate stream with its own index entry and its own set of chunks, so a
-## label carrying a player id, a match id or a position turns one stream into a hundred
-## thousand and takes the ingester down. This is not a tuning detail — it is the way
-## people break Loki, and it is why the labels here are a fixed, short list and every
-## other field goes into the line.
-##
-## So: service, environment, host, level and channel are labels. Everything else is in
-## the JSON of the line, where Loki's query language can still filter on it with
-## [code]| json | key="value"[/code] — a little slower to query, and incapable of taking
-## the cluster down.
+## Loki indexes labels, so cardinality is the hazard: service, environment, host, level and channel are the only labels.
+## Every other field goes into the JSON of the line (query with [code]| json[/code]).
 
 ## Labels taken from the router context, if present. Kept short on purpose.
 const CONTEXT_LABELS: Array[String] = ["service", "env", "host", "instance"]
 
 ## Send the channel as a label.
-##
-## On: a channel is bounded by the number of subsystems, which is about fifty, and
-## filtering by subsystem is the query people actually run.
+## On: channels are bounded by subsystem count (about fifty) and filtering by subsystem is the common query.
 @export var label_channel: bool = true
 
 ## Send the level as a label. On, for the same reason: six values, constantly filtered.
@@ -151,10 +138,9 @@ func interpret(response: Dictionary) -> DotResult:
 		return DotResult.success(null)
 
 	if status == 400:
-		# Loki's 400s are structural — a bad label, entries out of order, a stream too
-		# far in the past. Retrying an identical body cannot fix any of them, so this
-		# is reported as invalid rather than as a network problem, and the target drops
-		# the batch instead of blocking the queue behind it forever.
+		# Loki's 400s are structural (bad label, out of order, too old), so retrying the same
+		# body cannot help. Report invalid so the target drops the batch instead of blocking
+		# the queue behind it.
 		return DotResult.fail(
 			DotError.CODE_INVALID,
 			"Loki refused the batch.",

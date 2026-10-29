@@ -3,27 +3,8 @@ class_name DotLogTargetSql
 extends DotLogTarget
 
 ## Writes the log into a database table, in batches.
-##
-## [b]Godot ships no database driver, and this class is built around saying so honestly.[/b]
-## There is no [code]SQLite[/code], no [code]PostgreSQLClient[/code] and no
-## [code]MySQL[/code] class in the engine; every one of them is a GDExtension somebody
-## installs. So everything that can be done in GDScript is done here and in
-## [DotLogSqlSchema] — the DDL, the parameterised multi-row insert, the batching,
-## retention — and the one step that needs a native library is handed to whatever is
-## installed.
-##
-## The driver is duck-typed rather than a class of ours: anything with
-## [code]execute(sql, params) -> DotResult[/code] will do, which is deliberately the
-## shape dot-moderation's [code]DotSqlDriver[/code] already has. An operator who has set
-## up a database for bans should not have to set up a second one for logs, and the two
-## addons must not have to know about each other to share it.
-##
-## [b]When a log table beats a log file:[/b] several servers writing one place, a web
-## admin panel that needs to query rather than grep, retention measured in rows, and
-## joins against the tables that hold the bans and the players a line is about. When it
-## does not: a single box, where a file costs nothing and survives the database being
-## down. Keep the file target on either way — this one has a dependency, and a target
-## with a dependency is a target that can be unavailable.
+## Godot ships no database driver, so the driver is duck-typed ([code]execute(sql, params) -> DotResult[/code], the shape of dot-moderation's [code]DotSqlDriver[/code]) and everything else is in [DotLogSqlSchema].
+## Keep the file target on too: this one has a dependency, so it can be unavailable.
 
 const SELF_CHANNEL := "log.sql"
 
@@ -34,21 +15,14 @@ const SELF_CHANNEL := "log.sql"
 @export var dialect: DotLogSqlSchema.Dialect = DotLogSqlSchema.Dialect.SQLITE
 
 ## Records per INSERT.
-##
-## One statement per batch, so this is also the transaction size. 200 is comfortably
-## inside every driver's parameter limit at eight columns a row — SQLite's default
-## ceiling is 999 parameters in older builds, which is 124 rows, so this is checked at
-## send rather than assumed.
+## One statement per batch, so also the transaction size. Older SQLite caps at 999 parameters (124 rows of eight), so this is checked at send.
 @export_range(1, 5000, 1) var batch_size: int = 100
 
 ## Records held while the database is unavailable.
 @export_range(16, 200000, 16) var max_queued: int = 8192
 
 ## Delete rows older than this many days on [method prune]. 0 keeps everything.
-##
-## Not called automatically — a DELETE over a large table is not something to do from a
-## flush on a server that is mid-round. Call it from a scheduled task or a console
-## command, at a moment of your choosing.
+## Never automatic: a DELETE over a large table does not belong in a mid-round flush. Call it from a scheduled task or console command.
 @export_range(0, 3650, 1) var retention_days: int = 30
 
 ## The database driver. Any object with `execute(sql, params) -> DotResult`.
@@ -73,11 +47,7 @@ func set_context(context: Dictionary) -> void:
 
 
 ## Checks the driver and creates the table.
-##
-## The table is created here rather than by a migration because a log table has no
-## history worth migrating: if the shape changes, the old table is still readable and the
-## new one starts empty, which is the correct outcome for a log and would not be for
-## anything else.
+## Created here, not by a migration: a log table has no history worth migrating, so a changed shape starts a new table.
 func open() -> DotResult:
 	if driver == null:
 		return DotResult.fail(

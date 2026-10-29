@@ -3,25 +3,8 @@ class_name DotLogFormatSentry
 extends DotLogFormat
 
 ## Sentry, as envelopes of events.
-##
-## [b]This one is not a log collector and must not be configured like one.[/b] An error
-## tracker groups events into issues, counts how often each happens, and tells somebody.
-## Send it a hundred thousand INFO lines and you have paid for a search engine that is
-## much worse at searching than the others here — and buried the eleven crashes it exists
-## to show you. So [method is_error_tracker] is true, and [DotLogTargetHttp] sends it only
-## the records at or above its gate's level, with everything below becoming breadcrumbs
-## rather than events.
-##
-## The trail is the reason to have both: an error tracker with the twenty lines that
-## preceded the error answers "why" in one screen, and those twenty lines come from a
-## [DotLogTargetMemory] this format is given. Without them a game crash report is a stack
-## and a shrug.
-##
-## [b]The DSN contains a public key and is not a secret[/b] — it is compiled into every
-## shipping client by design, because that is how a client reports its own crashes. It is
-## still refused from the environment and the command line by [DotLogConfig], for the
-## ordinary reason: a value that selects where crash reports go should be deployed, not
-## ambient.
+## Not a log collector: [method is_error_tracker] is true, so only records at or above the gate level become events and the rest breadcrumbs from a [DotLogTargetMemory].
+## The DSN holds a public key, not a secret, but is still refused from environment and command line.
 
 ## The DSN from the project's settings, [code]https://<key>@<host>/<project>[/code].
 @export var dsn: String = ""
@@ -60,9 +43,7 @@ func is_error_tracker() -> bool:
 
 
 ## The ingestion URL, derived from the DSN.
-##
-## Overrides whatever base URL the target was given: a DSN already names the host and the
-## project, and a deployment that had to configure both would get them out of step.
+## Overrides the target's base URL: a DSN already names host and project, and configuring both would get them out of step.
 func endpoint_override() -> String:
 	var parts: Dictionary = _dsn_parts()
 	if parts.is_empty():

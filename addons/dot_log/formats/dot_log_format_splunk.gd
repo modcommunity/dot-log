@@ -3,21 +3,8 @@ class_name DotLogFormatSplunk
 extends DotLogFormat
 
 ## Splunk's HTTP Event Collector.
-##
-## Two details that are easy to get wrong and fail unhelpfully:
-##
-## - [b]The credential is not a bearer token.[/b] The header is
-##   [code]Authorization: Splunk <token>[/code], and sending [code]Bearer[/code] gets a
-##   401 whose body says "Token is required" — which reads as a missing token rather
-##   than a misspelled scheme.
-## - [b]The body is concatenated JSON objects, not an array and not NDJSON.[/b] One
-##   object after another, with nothing between them. An array is rejected outright;
-##   newlines are tolerated, which is why the newlines here are for human legibility
-##   and nothing else.
-##
-## The event time is seconds with a fractional part, not milliseconds. Sending
-## milliseconds is accepted and indexes every record in the year 56000, which is a
-## memorable way to find out.
+## The header is [code]Authorization: Splunk <token>[/code], not Bearer (a 401 "Token is required").
+## The body is concatenated JSON objects, not an array or NDJSON. Event time is seconds with a fraction (milliseconds index in year 56000).
 
 ## The index to write to. Empty uses whatever the token's default is.
 @export var splunk_index: String = ""
@@ -25,10 +12,8 @@ extends DotLogFormat
 ## The [code]source[/code] field, conventionally the thing that produced the record.
 @export var source: String = "dot-server"
 
-## The [code]sourcetype[/code], which is what Splunk's field extraction keys off.
-##
-## [code]_json[/code] is the built-in that parses the event object's fields without any
-## configuration at the Splunk end, which is what makes this work unattended.
+## The [code]sourcetype[/code], which Splunk's field extraction keys off.
+## [code]_json[/code] parses the event object's fields with no Splunk-side configuration.
 @export var sourcetype: String = "_json"
 
 

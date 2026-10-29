@@ -2,23 +2,8 @@ class_name DotLogCommands
 extends RefCounted
 
 ## The `log` command: what the logger is doing, and what it has been saying.
-##
-## [b]It names no console.[/b] This object has `claims`, `execute`, `complete`, `names`
-## and `help_for` — which is exactly the shape dot-console's `DotConsoleBridge` duck-types
-## and exactly the shape dot-server's console reaches through the same bridge. Neither is
-## a dependency of dot-log and neither is mentioned in this file; a host that has one
-## wraps this, and a host that has neither loses nothing else.
-##
-## [codeblock]
-## # with dot-console present, in the host project:
-## console.add_source(DotConsoleBridge.wrap(DotLogCommands.new(router), "log"))
-## [/codeblock]
-##
-## The command it exists for is `log test`. Everything else here is diagnostics that could
-## be read another way; **whether the collector is actually receiving anything** cannot be,
-## and the usual way of finding out is to wait for a real error and see whether it turns
-## up — which is a test you run once, badly, at the worst moment. `log test error a
-## deliberate test` puts one record of a chosen level through the whole pipeline on demand.
+## Names no console: it has the duck-typed shape (`claims`, `execute`, `complete`, `names`, `help_for`) a console bridge wraps.
+## `log test` puts one record through the whole pipeline to prove the collector receives it.
 
 const CHANNEL := "log.cmd"
 
@@ -38,8 +23,6 @@ var memory: DotLogTargetMemory = null
 func _init(p_router: DotLogRouter = null) -> void:
 	router = p_router
 
-
-# --- The duck-typed console source shape -----------------------------------
 
 func names() -> PackedStringArray:
 	return PackedStringArray(["log"])
@@ -119,8 +102,6 @@ func execute(line: String) -> DotResult:
 				"one of: " + ", ".join(SUBCOMMANDS)
 			)
 
-
-# --- Subcommands -----------------------------------------------------------
 
 func _status() -> DotResult:
 	if router == null:
@@ -258,10 +239,7 @@ func _flush() -> DotResult:
 
 
 ## Puts one record of a chosen level through the whole pipeline.
-##
-## The only way to answer "is the collector receiving anything" that does not involve
-## waiting for a real failure. Deliberately logged on its own channel so that a test
-## record can never be mistaken for the subsystem it is named after.
+## Logged on its own channel so a test record is never mistaken for the subsystem it is named after.
 func _test(args: PackedStringArray) -> DotResult:
 	var level: int = DotLog.Level.INFO
 	var rest: PackedStringArray = args

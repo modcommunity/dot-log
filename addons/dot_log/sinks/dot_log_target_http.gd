@@ -2,31 +2,9 @@
 class_name DotLogTargetHttp
 extends DotLogTarget
 
-## Ships records to a collector over HTTP, in batches, with a [DotLogFormat] deciding the
-## bytes.
-##
-## This is the target that reaches every hosted service. It owns everything those
-## services have in common — a bounded queue, batching, one request in flight, retry with
-## back-off, a circuit that opens when the collector is down — and knows nothing at all
-## about any of them. Swapping Loki for a collector is one assignment.
-##
-## [b]HTTP is the only transport a browser has, which is why this matters beyond servers.[/b]
-## A web client has no UDP, no raw TCP and nowhere useful to put a file; if a shipped
-## browser build is to report anything at all, it is through here.
-##
-## Three behaviours worth knowing before deploying one:
-##
-## - [b]One request at a time.[/b] Not for politeness: two concurrent requests from one
-##   queue arrive out of order, and every collector on the list displays records in the
-##   order of the timestamps they carry — so an interleaved retry shows the past
-##   arriving after the present.
-## - [b]The circuit opens.[/b] After [member failures_before_open] consecutive failures
-##   the target stops trying for [member open_circuit_sec]. A collector that is down
-##   stays down for minutes, and a shipper that keeps trying every two seconds turns one
-##   outage into a second one — every attempt costs a socket, a DNS lookup and a frame.
-## - [b]A rejected batch is dropped, a failed one is kept.[/b] See [method _worth_retrying]:
-##   a 400 means these exact bytes will never be accepted, and requeuing them blocks
-##   every record behind them forever.
+## Ships records to a collector over HTTP, in batches, with a [DotLogFormat] deciding the bytes.
+## Owns the bounded queue, batching, one request in flight, retry with back-off and a circuit breaker; knows nothing of any service.
+## HTTP is the only transport a browser has. Rationale for the three behaviours is in docs/design.md.
 
 const SELF_CHANNEL := "log.http"
 
@@ -41,9 +19,7 @@ const SELF_CHANNEL := "log.http"
 @export_range(1, 5000, 1) var batch_size: int = 100
 
 ## Records held while the collector is unreachable.
-##
-## About 4 MB of typical records. When it fills, the oldest go — see [DotLogBuffer] for
-## why the alternative is an out-of-memory kill during an outage.
+## About 4 MB of typical records; when full the oldest go (see [DotLogBuffer]).
 @export_range(16, 500000, 16) var max_queued: int = 8192
 
 ## Seconds a request may take before it is abandoned.
@@ -56,10 +32,7 @@ const SELF_CHANNEL := "log.http"
 @export_range(1.0, 3600.0, 1.0) var open_circuit_sec: float = 60.0
 
 ## Send immediately when a record at this level or above arrives.
-##
-## A crash report that waits for the flush interval is a crash report that does not
-## arrive, because the process is gone. FATAL by default; ERROR for a client build where
-## the process usually survives.
+## A crash report that waits for the flush interval never arrives. FATAL by default; ERROR for a client build.
 @export var send_immediately_above: DotLog.Level = DotLog.Level.FATAL
 
 ## The HTTP node. Created by the router, which parents it — [DotHttp] is a [Node] and its
@@ -253,17 +226,8 @@ func _send(batch: Array[Dictionary]) -> DotResult:
 
 
 ## Whether these exact bytes could ever be accepted.
-##
-## [b]Not simply [method DotResult.is_retryable].[/b] dot-core maps every non-2xx it does
-## not recognise onto [constant DotError.CODE_HTTP], which is retryable — the right
-## default for an API call, where a 400 is usually a caller that can be fixed and retried
-## by a person. It is the wrong default here: nobody is going to fix the batch, so a 400
-## from a collector that has decided it dislikes this payload would be retried forever,
-## and every record behind it would sit in the queue until the queue dropped it.
-##
-## So a 4xx means these bytes are refused, with two exceptions that genuinely are about
-## timing rather than content: 408 (the request took too long to arrive) and 429 (too
-## many, too fast). A 5xx and a transport failure are always worth another go.
+## Not [method DotResult.is_retryable]: dot-core maps unknown non-2xx to a retryable CODE_HTTP, but nobody will fix a refused batch, so it would block the queue forever.
+## A 4xx means refused except 408 and 429; a 5xx or transport failure is worth another go.
 func _worth_retrying(res: DotResult) -> bool:
 	if res == null or res.error == null:
 		return false

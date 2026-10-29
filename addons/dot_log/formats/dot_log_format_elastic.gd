@@ -3,20 +3,8 @@ class_name DotLogFormatElastic
 extends DotLogFormat
 
 ## Elasticsearch and OpenSearch, through the bulk API.
-##
-## [b]The reason this format has a real [method interpret]: the bulk API answers 200 when
-## it has rejected everything.[/b] The status code reports that the request was
-## understood, not that the documents were indexed; the per-document outcomes are in the
-## body, behind an [code]errors[/code] flag. A shipper that checks the status code and
-## moves on will drop every record from the moment a mapping conflict appears — one field
-## that arrived as a string where the index expects a number is enough — and will keep
-## reporting itself healthy while it does. That is the failure this file exists to notice.
-##
-## Field names are prefixed by default for the same reason. Elasticsearch infers a type
-## per field on first sight and enforces it afterwards, so an addon that logs
-## [code]count[/code] as an int and another that logs it as "many" put the index into a
-## state where one of them is silently unindexable. A prefix does not fix it; it contains
-## it, and it makes the fields obviously ours.
+## The bulk API answers 200 when it rejected everything, so [method interpret] reads the per-document [code]errors[/code] flag.
+## Field names are prefixed by default: a type conflict between addons logging the same name makes one unindexable.
 
 ## Index to write to. A date pattern is expanded: [code]%Y[/code], [code]%m[/code],
 ## [code]%d[/code] — so [code]dot-logs-%Y.%m.%d[/code] gives a daily index, which is how
@@ -24,10 +12,7 @@ extends DotLogFormat
 @export var index: String = "dot-logs-%Y.%m.%d"
 
 ## Use a data stream instead of an index.
-##
-## A data stream only accepts [code]create[/code], never [code]index[/code], and rejects
-## the whole request otherwise. It is also the modern default for append-only data,
-## which a log is.
+## A data stream accepts only [code]create[/code], never [code]index[/code], and rejects the whole request otherwise.
 @export var data_stream: bool = false
 
 ## Basic-auth user. Leave empty and set [member token] to use an API key instead.

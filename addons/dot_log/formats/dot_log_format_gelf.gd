@@ -2,32 +2,12 @@
 class_name DotLogFormatGelf
 extends DotLogFormat
 
-## GELF, the Graylog Extended Log Format, over HTTP.
-##
-## GELF exists because plain syslog truncates at 1 KB and has nowhere to put structured
-## data that a receiver will reliably parse. It keeps syslog's severity numbers and adds
-## arbitrary typed fields, which makes it the natural step up for a deployment that
-## already forwards syslog and has outgrown it.
-##
-## Four rules the spec is strict about, each of which fails quietly:
-##
-## - [b]Every custom field must begin with an underscore.[/b] One that does not is
-##   dropped by the receiver, not rejected — so the record arrives looking fine with the
-##   field missing.
-## - [b][code]_id[/code] is forbidden[/b], because Graylog uses it internally. A message
-##   carrying one is rejected outright.
-## - [b][code]short_message[/code] is required[/b] and may not be empty.
-## - [b][code]timestamp[/code] is seconds with a fractional part[/b], not milliseconds.
-##
-## Over HTTP the transport is one JSON object per request, or newline-delimited objects
-## for a bulk endpoint. UDP GELF with its own chunking is deliberately not implemented:
-## chunked UDP reassembly is where GELF's implementation bugs live, and a deployment that
-## wants datagrams is better served by [DotLogTargetSyslog].
+## GELF (Graylog Extended Log Format) over HTTP; UDP chunking is deliberately not implemented, use [DotLogTargetSyslog].
+## Spec rules that fail quietly: custom fields start with an underscore, [code]_id[/code] is forbidden, [code]short_message[/code] is required,
+## [code]timestamp[/code] is seconds with a fraction.
 
 ## Send newline-delimited objects instead of one object per request.
-##
-## Graylog's HTTP input accepts a batch this way. A receiver that does not will answer
-## 400 on the second line, which is the tell.
+## A receiver that does not accept a batch answers 400 on the second line.
 @export var bulk: bool = true
 
 ## The [code]host[/code] field, which GELF requires. Empty takes it from the router
@@ -35,9 +15,7 @@ extends DotLogFormat
 @export var source_host: String = ""
 
 ## Include the full message as well as the short one.
-##
-## [code]full_message[/code] is where a stack trace goes. Off unless a record has
-## something long to say, because duplicating every line into both is pure storage cost.
+## [code]full_message[/code] is where a stack trace goes; off because duplicating every line is pure storage cost.
 @export var include_full_message: bool = false
 
 

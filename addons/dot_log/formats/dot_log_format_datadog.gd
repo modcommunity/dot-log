@@ -3,25 +3,8 @@ class_name DotLogFormatDatadog
 extends DotLogFormat
 
 ## Datadog's log intake.
-##
-## A JSON array of records, the API key in a [code]DD-API-KEY[/code] header, and four
-## reserved attributes that decide how the record is treated:
-##
-## - [code]ddsource[/code] selects the integration pipeline that parses the record. Set
-##   it to something that is not a known integration name and you get the generic parser,
-##   which is what we want — a pipeline written for another product's log shape will
-##   happily mangle ours.
-## - [code]service[/code] is what the whole product groups by. Without it every record
-##   lands in one undifferentiated stream.
-## - [code]ddtags[/code] is a comma-separated [code]key:value[/code] string, not an
-##   object, and not a list. Anything else is dropped without comment.
-## - [code]status[/code] is the level, and it must be one of the names it knows
-##   ([code]debug info warning error critical[/code]); anything else shows as
-##   [code]info[/code] and the level filter in the UI then silently lies.
-##
-## [b]The region is part of the endpoint.[/b] An EU account sending to the US intake gets
-## a 403, so the base URL belongs in configuration and there is no sensible default to
-## guess here.
+## A JSON array, the key in [code]DD-API-KEY[/code], and reserved attributes [code]ddsource[/code], [code]service[/code], [code]ddtags[/code] (a comma string) and [code]status[/code] (a name it knows).
+## The region is part of the endpoint, so the base URL is configuration with no default.
 
 ## The [code]ddsource[/code] attribute. Deliberately not a known integration name.
 @export var ddsource: String = "dot"

@@ -3,27 +3,8 @@ class_name DotLogConfig
 extends DotConfig
 
 ## Logging as a deployment document: one flat file that builds the whole pipeline.
-##
-## [b]The reason this is flat rather than a list of targets.[/b] A configuration format
-## expressive enough to describe any arrangement of targets is a small programming
-## language, and every deployment that has ever needed one was building the same four
-## things: a file, a ring in memory, somewhere to forward to, and possibly a table. So
-## this describes exactly those, each switched on by one flag — and a deployment that
-## genuinely needs two collectors adds the second target in code, where a second one
-## belongs.
-##
-## Layered like every other [DotConfig]: exported defaults, then a JSON file (or [method load_cfg]'s
-## `cfg/addons/dot_log/log.yml`, `cfg/game/<game>/dot_log/` and the operator's `cfg/server/addons/dot_log/` and
-## `cfg/server/game/<game>/dot_log/`), then
-## [code]DOT_LOG_*[/code] in the environment, then [code]--log-*[/code] on the command
-## line. Which means a server started with [code]--log-level debug --log-remote-enabled
-## true[/code] ships debug records to the collector for one run without any file being
-## edited, and goes back to normal on restart.
-##
-## [b][member remote_token] and [member sentry_dsn] are refused from the environment and
-## from the command line[/b], like every other secret in this family: both are readable
-## by other processes on most systems, both end up in [code]ps[/code] output, and a token
-## that appears in a pasted bug report has to be rotated.
+## Layered like every [DotConfig]: defaults, JSON file, [code]DOT_LOG_*[/code] environment, [code]--log-*[/code] command line.
+## [member remote_token] and [member sentry_dsn] are refused from environment and command line (see docs/design.md).
 
 ## The named levels, for the string-valued settings.
 const LEVEL_KEYS: Array[String] = [
@@ -39,16 +20,11 @@ const CFG_ADDON := "dot-log"
 @export var level: String = "info"
 
 ## Per-channel overrides, as [code]channel=level[/code].
-##
-## What lets one subsystem be turned up without turning everything up — the reason a
-## per-channel level exists at all is that global DEBUG buries the lines you wanted.
+## Lets one subsystem be turned up without global DEBUG burying the lines you wanted.
 @export var channel_levels: PackedStringArray = PackedStringArray()
 
 ## The lowest level mirrored into the engine's own warning and error output.
-##
-## [code]error[/code] is right for a server. At [code]warn[/code] every recoverable
-## warning arrives with an engine backtrace attached, which reads as a crash in a log an
-## admin is scanning; see [member DotLogRouter.mirror_min_level] for the full reasoning.
+## [code]error[/code] suits a server: at [code]warn[/code] every warning carries an engine backtrace; see [member DotLogRouter.mirror_min_level].
 @export var mirror_min_level: String = "error"
 
 ## Print to stdout as well as to the targets. On: a supervisor captures stdout.
@@ -135,9 +111,7 @@ const CFG_ADDON := "dot-log"
 @export var sentry_dsn: String = ""
 
 ## Minimum level to ship.
-##
-## [code]info[/code] rather than [code]debug[/code], because the bill and the search
-## quality both come from this line. An error tracker narrows it further on its own.
+## [code]info[/code] rather than [code]debug[/code]: the bill and the search quality both follow this line.
 @export var remote_level: String = "info"
 
 @export var remote_batch: int = 100
@@ -257,12 +231,8 @@ func validate() -> DotResult:
 	return DotResult.success(null)
 
 
-# --- Building --------------------------------------------------------------
-
 ## Builds the router this document describes, without starting it.
-##
-## The caller adds it to the tree, which is what starts it — so a host can add a target
-## of its own, or set the context, between building and starting.
+## The caller adds it to the tree, which starts it, so a host can add a target or set the context first.
 func build_router() -> DotLogRouter:
 	var router: DotLogRouter = DotLogRouter.new()
 	router.name = "DotLogRouter"
@@ -349,9 +319,7 @@ func apply_levels() -> void:
 
 
 ## The context tags, with anything empty left out.
-##
-## An empty tag is worse than a missing one: it is a label with an empty value in every
-## dashboard, and it groups every unconfigured server in the fleet together.
+## An empty tag is a label with an empty value in every dashboard, grouping every unconfigured server together.
 func context_tags() -> Dictionary:
 	var out: Dictionary = {}
 	if service != "":
@@ -433,9 +401,7 @@ func _gate_at(level_name: String) -> DotLogGate:
 
 
 ## A level name to a [enum DotLog.Level], or -1.
-##
-## [method DotLog.parse_level] does this too, and this wraps it only to accept the short
-## spellings a configuration file uses.
+## Wraps [method DotLog.parse_level] only to accept the short spellings a config file uses.
 static func parse_level(name: String) -> int:
 	var trimmed: String = name.strip_edges().to_lower()
 	if trimmed == "warning":

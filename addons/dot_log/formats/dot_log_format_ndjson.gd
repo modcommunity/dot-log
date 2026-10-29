@@ -3,20 +3,11 @@ class_name DotLogFormatNdjson
 extends DotLogFormat
 
 ## One JSON object per line: the format everything that is not a hosted service accepts.
-##
-## This is the one to reach for first. A log shipper running beside the server, a
-## collector agent, an HTTP input on a log pipeline, a webhook into a chat room, a
-## handler somebody wrote in an afternoon — all of them take newline-delimited JSON, and
-## none of them need a vendor's envelope. It is also the format to test against, because
-## a failure is readable with [code]tail[/code] rather than with a decoder.
-##
-## The authentication is whatever the receiver wants: set [member bearer] for
-## [code]Authorization: Bearer[/code], or put the header in [member extra_headers].
+## Reach for it first, and test against it: a failure is readable with [code]tail[/code].
+## Auth is whatever the receiver wants: [member bearer] or a header in [member extra_headers].
 
 ## Send a JSON array instead of newline-delimited objects.
-##
-## Some receivers want one; most want the lines. Both are one flag apart and getting it
-## wrong produces a 400 with no explanation, which is a slow thing to diagnose.
+## Some receivers want one; the wrong choice gives a 400 with no explanation.
 @export var as_array: bool = false
 
 ## Whether to send [member token] as a bearer credential.

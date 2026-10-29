@@ -2,19 +2,8 @@ class_name DotLogEvent
 extends RefCounted
 
 ## One log record, on its way out of the process.
-##
-## [DotLog] hands every sink a [Dictionary]:
-## [code]{level, level_name, channel, message, fields, ticks_ms}[/code]. That is the
-## right shape for printing a line and the wrong shape for shipping one — a collector
-## wants a wall-clock time, a stable ordering, and values a JSON encoder will not
-## mangle. This class is that conversion, and it is static because there is one of these
-## per log line and allocating an object per line is exactly the cost a logger is not
-## allowed to have.
-##
-## [b]Nothing here mutates the record it was given.[/b] Sinks run in registration order
-## over the same [Dictionary], so a target that "normalised" it in place would be
-## changing what the next target receives — and the bug would present as one collector
-## disagreeing with another about a line both of them got.
+## Converts [DotLog]'s record into a shippable event (wall-clock time, stable order, JSON-safe values).
+## Static, and nothing here mutates the record: sinks share one [Dictionary].
 
 ## Severity numbers the shippers want, none of which agree with each other.
 ##
@@ -39,16 +28,7 @@ const SEVERITY_NAMES: Array[String] = [
 ]
 
 ## Wall clock at process start, minus the monotonic clock at the same instant.
-##
-## [b]Why an offset rather than [method Time.get_unix_time_from_system] per record.[/b]
-## Two reasons, and the second is the one that matters. It is a system call per line on
-## a server emitting hundreds a second — and it is not monotonic, so a clock correction
-## mid-session (NTP stepping, a laptop waking) makes a batch of records go backwards,
-## which some collectors reject outright and the rest render as an unreadable mess.
-## [method Time.get_ticks_msec] is monotonic, so this ordering cannot invert.
-##
-## The trade is that a long-running server's absolute timestamps drift with the host
-## clock instead of tracking it. Seconds per day, against ordering that is always right.
+## An offset rather than a clock read per record: monotonic ordering cannot invert when NTP steps the clock. Absolute time drifts with the host instead.
 static var _epoch_offset_ms: int = 0
 static var _epoch_ready: bool = false
 
@@ -66,18 +46,14 @@ static func _ensure_epoch() -> void:
 
 
 ## Re-reads the host clock, for a process that has been up long enough to care.
-##
-## Not called automatically: a resync moves every subsequent timestamp by the drift in
-## one step, and doing that behind the caller's back is worse than the drift.
+## Never automatic: a resync moves every later timestamp by the drift in one step.
 static func resync_clock() -> void:
 	_epoch_ready = false
 	_ensure_epoch()
 
 
 ## Turns a [DotLog] record into a shippable event.
-##
-## Adds [code]time_ms[/code] (Unix milliseconds), [code]seq[/code] and
-## [code]severity[/code], and leaves everything else exactly as it arrived.
+## Adds [code]time_ms[/code], [code]seq[/code] and [code]severity[/code]; everything else arrives unchanged.
 static func from_record(record: Dictionary) -> Dictionary:
 	_ensure_epoch()
 	_seq += 1
@@ -99,9 +75,7 @@ static func from_record(record: Dictionary) -> Dictionary:
 
 
 ## A synthetic event, for the records this addon generates about itself.
-##
-## Used for the "the same line, 412 more times" summaries and for drop notices, both of
-## which must not go back through [DotLog]. See [DotLogRouter]'s reentrancy guard.
+## Used for repeat summaries and drop notices, which must not go back through [DotLog].
 static func synthetic(
 	level: int, channel: String, message: String, fields: Dictionary = {}
 ) -> Dictionary:
@@ -133,17 +107,12 @@ static func otlp_severity(level: int) -> int:
 	return OTLP_SEVERITY[level]
 
 
-# --- Time ------------------------------------------------------------------
-
 static func time_ms(event: Dictionary) -> int:
 	return int(event.get("time_ms", 0))
 
 
 ## Unix nanoseconds, as a string.
-##
-## As a string, not an int: nanoseconds since 1970 is about 1.8e18, which fits a 64-bit
-## int and does NOT fit a double — and JSON numbers are doubles to most parsers. Loki
-## and OTLP both specify the field as a string for exactly this reason.
+## A string because 1.8e18 fits an int64 but not the double most JSON parsers use; Loki and OTLP specify a string.
 static func time_ns(event: Dictionary) -> String:
 	return str(time_ms(event)) + "000000"
 
@@ -170,17 +139,8 @@ static func iso8601(event: Dictionary) -> String:
 	return stamp.insert(19, ".%03d" % frac) + "Z"
 
 
-# --- Values ----------------------------------------------------------------
-
 ## Coerces a value into something [method JSON.stringify] renders faithfully.
-##
-## [b]JSON.stringify does not fail on a Vector3 or an Object — it emits something.[/b]
-## A [Vector3] comes out as an array, a [StringName] as a string, a [Node] as
-## [code]null[/code] and a [Callable] as an empty object, so a field that was supposed
-## to carry a position arrives at the collector as an unqueryable three-element list and
-## nobody finds out until they try to search on it. Everything that is not a JSON scalar
-## is rendered with [method str] here, on purpose: a string reading
-## [code](1.0, 2.0, 3.0)[/code] is at least honest about having been a Godot value.
+## JSON.stringify silently mangles a Vector3, Node or Callable, so anything that is not a JSON scalar is rendered with [method str].
 static func json_value(value: Variant) -> Variant:
 	match typeof(value):
 		TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING:
@@ -211,10 +171,7 @@ static func json_fields(fields: Dictionary) -> Dictionary:
 
 
 ## The event as one flat [Dictionary], which is what a generic JSON collector wants.
-##
-## Context tags are written first so a field can never shadow one: a log line carrying
-## its own [code]service[/code] would otherwise repoint that record at a different
-## service in every dashboard built on that label.
+## Context tags are written first so a field can never shadow one (a field named [code]service[/code] would repoint the record).
 static func flatten(
 	event: Dictionary, context: Dictionary = {}, field_prefix: String = ""
 ) -> Dictionary:
@@ -266,10 +223,7 @@ static func text_line(event: Dictionary, with_time: bool = true) -> String:
 
 
 ## A stable identity for "the same line again", for deduplication.
-##
-## The level, channel and message, never the fields: a line that repeats with a
-## different player id every time is still the same line, and a key including the fields
-## would suppress nothing at all in exactly the flood it exists to survive.
+## Level, channel and message, never the fields: a varying player id would otherwise defeat dedupe in the flood it exists for.
 static func repeat_key(event: Dictionary) -> String:
 	return "%d %s %s" % [
 		int(event.get("level", 2)),

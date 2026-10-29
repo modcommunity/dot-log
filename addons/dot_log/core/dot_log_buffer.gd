@@ -1,28 +1,9 @@
 class_name DotLogBuffer
 extends RefCounted
 
-## A bounded queue of events, with an explicit answer for what happens when it fills.
-##
-## Every target that cannot write synchronously — anything over a network, and a file on
-## web where a write is an IndexedDB transaction — needs one of these, and the only
-## interesting question about it is the one an unbounded queue never asks.
-##
-## [b]An unbounded log queue turns a network outage into an out-of-memory kill.[/b] The
-## collector goes away, the game keeps logging, the queue grows at a few hundred bytes a
-## line, and forty minutes later the server dies — of logging. The process that was
-## working perfectly is killed by the subsystem that was supposed to tell you it was
-## working perfectly. So this is bounded, and the bound is in records and in bytes,
-## because one large field makes a short queue heavy.
-##
-## When it is full something has to go, and which end you drop is a real decision:
-##
-## - [constant DROP_OLDEST] keeps the newest, which is what a live incident wants — the
-##   lines nearest the failure are the ones you will read. Default.
-## - [constant DROP_NEWEST] keeps the earliest, which is what a root-cause investigation
-##   wants: the first error explains the next thousand.
-##
-## Either way the drops are counted and [method drain_drop_notice] turns them into a
-## record of their own, because a log with a silent hole in it is worse than a short one.
+## A bounded queue of events (records and bytes) with an explicit drop policy.
+## An unbounded queue turns a collector outage into an out-of-memory kill.
+## [constant DROP_OLDEST] (default) keeps the newest, [constant DROP_NEWEST] the earliest; drops are counted by [method drain_drop_notice].
 
 enum Policy {
 	DROP_OLDEST,  ## Discard from the front. Keeps the most recent.
@@ -34,11 +15,8 @@ const CHANNEL := "log.buffer"
 ## Maximum records held.
 var max_records: int = 4096
 
-## Maximum bytes held, estimated from each record's message and field sizes. 0 disables.
-##
-## Estimated rather than measured: the exact figure is the encoded payload, which is not
-## known until the format runs, and running the format on a record that may be dropped
-## is work done for nothing. The estimate is deliberately generous.
+## Maximum bytes held, estimated from message and field sizes. 0 disables.
+## Estimated because the encoded size is unknown until the format runs, and encoding a record that may be dropped is wasted work.
 var max_bytes: int = 8 * 1024 * 1024
 
 var policy: Policy = Policy.DROP_OLDEST
@@ -99,10 +77,7 @@ func take(count: int) -> Array[Dictionary]:
 
 
 ## Puts a batch back at the front, for a send that failed and will be retried.
-##
-## Ordering matters here: these are older than anything already queued, and a collector
-## that receives them out of order will display them out of order, because the display
-## is sorted by the timestamp the record carries and these carry the earlier one.
+## Order matters: a collector sorts by the timestamp the record carries, so these must stay ahead of newer ones.
 func requeue(events: Array[Dictionary]) -> void:
 	if events.is_empty():
 		return
@@ -151,9 +126,7 @@ func dropped() -> int:
 
 
 ## A record describing the drops since the last call, and resets the count.
-##
-## Returned rather than logged, because this class is called from inside the logger and
-## a log call from in there is the reentrancy that [DotLogRouter] guards against.
+## Returned rather than logged: a log call from in here is the reentrancy [DotLogRouter] guards against.
 func drain_drop_notice() -> Dictionary:
 	if _dropped <= 0:
 		return {}

@@ -3,26 +3,8 @@ class_name DotLogTargetSyslog
 extends DotLogTarget
 
 ## Sends records to a syslog collector, in the format from RFC 5424.
-##
-## [b]Worth having even in a world of hosted log services, for one reason: it is already
-## there.[/b] Every Linux box a dedicated server runs on has a syslog daemon listening,
-## every managed host has a documented way to forward it, and every log aggregator ever
-## built accepts it. A game server that speaks syslog needs no agent installed, no API
-## key, and no account — which makes it the destination a community host can actually
-## turn on.
-##
-## Two transports, and they fail differently:
-##
-## - [b]UDP[/b] is fire-and-forget. It cannot block the game and it cannot tell you the
-##   collector is gone; a datagram over about 1 KB may also be dropped silently by a
-##   router in between, so [member max_message_bytes] truncates rather than gambling.
-##   Sent as the record arrives, because the whole point of a UDP tail is that it is live.
-## - [b]TCP[/b] is framed with octet counting (RFC 6587), delivers in order, and reports
-##   a dead collector — at the cost of a connection to maintain. Buffered and sent on the
-##   flush, because a connect is not something to do inside a log call.
-##
-## Neither exists in a browser, which has no raw sockets of either kind: [method open]
-## says so rather than pretending to send.
+## Worth having because it is already there: no agent, key or account. UDP is sent as the record arrives and truncates at [member max_message_bytes]; TCP is octet-counted (RFC 6587) and sent on flush.
+## Neither exists in a browser, so [method open] says so.
 
 const SELF_CHANNEL := "log.syslog"
 
@@ -37,11 +19,7 @@ enum Transport {
 const FACILITY_LOCAL0 := 16
 
 ## Structured-data id for our own fields.
-##
-## The RFC requires a custom SD-ID to be [code]name@<private enterprise number>[/code].
-## 32473 is the number IANA reserved for documentation and examples (RFC 5612), which is
-## the honest choice for a project that has not registered one — it is unambiguous about
-## being unregistered rather than squatting on somebody else's.
+## A custom SD-ID must be [code]name@<enterprise number>[/code]; 32473 is IANA's number reserved for documentation (RFC 5612), honest for an unregistered project.
 const SD_ID := "dot@32473"
 
 @export var host: String = "127.0.0.1"
@@ -60,16 +38,11 @@ const SD_ID := "dot@32473"
 @export_range(0, 23, 1) var facility: int = FACILITY_LOCAL0
 
 ## Send the message's fields as RFC 5424 structured data.
-##
-## On, because it is the difference between a searchable record and a sentence. Off for
-## a collector that mishandles structured data, of which there are still some.
+## On: a searchable record rather than a sentence. Off for a collector that mishandles it.
 @export var structured_data: bool = true
 
 ## Longest datagram to send, in bytes. Longer messages are truncated with an ellipsis.
-##
-## 1024 is the minimum every RFC 5424 receiver must accept; many accept 8 KB, and a
-## datagram larger than the path MTU is fragmented and then quietly lost by something in
-## the middle. Raise it only against a collector you control.
+## 1024 is the minimum every receiver must accept; a datagram over the path MTU is fragmented and quietly lost. Raise it only against a collector you control.
 @export_range(480, 65535, 1) var max_message_bytes: int = 1024
 
 ## Lines held while TCP is connecting or down. Beyond this the oldest go.
@@ -178,8 +151,6 @@ func pending() -> int:
 	return _queue.size()
 
 
-# --- RFC 5424 --------------------------------------------------------------
-
 ## One record as a syslog message, without any transport framing.
 func format_message(event: Dictionary) -> String:
 	var level: int = int(event.get("level", DotLog.Level.INFO))
@@ -261,8 +232,6 @@ static func _default_hostname() -> String:
 		name = "-"
 	return name
 
-
-# --- TCP -------------------------------------------------------------------
 
 func _connect_tcp() -> DotResult:
 	_tcp = StreamPeerTCP.new()

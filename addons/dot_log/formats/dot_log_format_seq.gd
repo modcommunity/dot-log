@@ -2,28 +2,9 @@
 class_name DotLogFormatSeq
 extends DotLogFormat
 
-## Seq, in the compact log event format (CLEF).
-##
-## Worth knowing about specifically because [b]it is the one on this list a community can
-## self-host in an afternoon[/b]: one container, a web UI that is actually pleasant, and
-## no account. For a game with a handful of servers it is very often the right answer,
-## and it is the one to reach for before signing up to anything.
-##
-## CLEF is newline-delimited JSON with reserved keys that begin with [code]@[/code]:
-##
-## - [code]@t[/code] the timestamp, ISO 8601.
-## - [code]@l[/code] the level, by name. Absent means Information, which is why an
-##   info-level record here does not send the key at all.
-## - [code]@m[/code] a rendered message, or [code]@mt[/code] a message [i]template[/i]
-##   with [code]{named}[/code] holes.
-## - [code]@x[/code] an exception or stack trace.
-##
-## [b]The template is the interesting part, and this format uses it deliberately.[/b] Seq
-## groups events by their template, so "player connected" arriving four thousand times is
-## one group with four thousand members rather than four thousand unrelated lines — and
-## every field stays individually queryable. Which is exactly the shape [DotLog] records
-## already have: a constant message and a dictionary of fields. The two designs agree,
-## so nothing has to be reconstructed by parsing.
+## Seq, in the compact log event format (CLEF): newline-delimited JSON with reserved [code]@t[/code], [code]@l[/code], [code]@m[/code]/[code]@mt[/code] and [code]@x[/code] keys.
+## Info-level records omit [code]@l[/code] (absent means Information).
+## Seq groups by message template, which matches [DotLog]'s constant message plus fields, so nothing is parsed back out.
 
 ## Seq's level names, which are its own.
 const SEQ_LEVELS: Array[String] = [
@@ -31,9 +12,7 @@ const SEQ_LEVELS: Array[String] = [
 ]
 
 ## Send the message as a template with the fields appended as named holes.
-##
-## On, for the grouping described above. Off sends a rendered message, which is right
-## if the messages are already unique per event.
+## On, for grouping; off sends a rendered message, right if messages are already unique per event.
 @export var use_template: bool = true
 
 
@@ -90,11 +69,7 @@ func build(events: Array, context: Dictionary) -> PackedByteArray:
 
 
 ## The message with one [code]{Field}[/code] hole appended per field.
-##
-## Appended rather than substituted: a [DotLog] message is prose written for a console
-## and does not contain holes, so the only honest way to make it a template is to state
-## the fields after it. The result renders as
-## [code]player connected (Peer: 4, Name: "Ada")[/code] and groups on the prose.
+## Appended, not substituted: a [DotLog] message is prose with no holes, so the fields are stated after it and it groups on the prose.
 func _template_for(message: String, fields: Dictionary) -> String:
 	var holes: PackedStringArray = PackedStringArray()
 	for k: Variant in fields:
