@@ -4,18 +4,15 @@ extends Node
 
 const CHECKS := 457
 
-## Sections entered against sections that ran to their last line, and against this. A
-## runtime error inside a section aborts that function and nothing says so; a section that
-## bailed out early after a failed guard is counted as not finished on purpose. The CHECKS
-## total is the other half — see docs/testing.md.
+## Sections entered against sections run to their last line. A runtime error aborts a
+## section silently, so an early bail-out counts as unfinished on purpose; CHECKS is the
+## other half (docs/testing.md).
 const SECTIONS := 27
 
 var _passed := 0
 var _failed := 0
 var _entered := 0
 var _completed := 0
-
-# --- Helpers ----------------------------------------------------------------
 
 func _record(
 	level: int = DotLog.Level.INFO,
@@ -45,10 +42,6 @@ func _event(
 func _parse(text: String) -> Variant:
 	return JSON.parse_string(text)
 
-
-# --- Event ------------------------------------------------------------------
-
-# --- Harness ----------------------------------------------------------------
 
 func _section(title: String) -> void:
 	_entered += 1
