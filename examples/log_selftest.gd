@@ -1061,6 +1061,7 @@ func _test_cfg_layout() -> void:
 	DotPaths.remove_tree("user://cfg/game/mg-test")
 	DotPaths.remove_tree("user://cfg/server/game/mg-test")
 
+	DotPaths.remove_tree(addon_dir)
 	DotPaths.remove_tree(server_dir)
 	DotPaths.remove_tree(legacy)
 	DotCfgLegacy.reset()
@@ -1070,7 +1071,6 @@ func _test_cfg_layout() -> void:
 	_check("the old cfg/server/dot_log/ still loads", res.ok and config.level == "info", res)
 	_check("and warns once", DotCfgLegacy.warned_count() == 1)
 	DotPaths.remove_tree("user://cfg/server/dot_log")
-	DotPaths.remove_tree(addon_dir)
 	DotPaths.remove_tree(server_dir)
 	DotPaths.remove_tree(legacy)
 	DotCfgLegacy.reset()
