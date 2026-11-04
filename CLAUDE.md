@@ -27,7 +27,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first (its logging rules are the on
 ## Running and testing
 
 - The family's two steps ([game-dev/CLAUDE.md](../../CLAUDE.md#validating-anything)), then `godot --headless --path . res://examples/log_selftest.tscn`.
-- **Two engine errors in its output are on purpose** (`missing terminating ]`, `Parse JSON failed`): the checks that a bad redaction pattern and a non-JSON collector response are reported rather than thrown. The run exits 0.
+- **Five `ERROR` lines on stderr are on purpose**: `DotLog.at()` refusing level 6 (`OFF`), `missing terminating ]` and `Parse JSON failed` (a bad redaction pattern and a non-JSON collector response are reported rather than thrown), and the mirrored `FTL net` and `ERR log.cmd` test records. The run exits 0.
 - The collector is a `FakeHttp` extending the real `DotHttp` (the target's field is typed, and a fake that cannot be assigned proves nothing); the database is a recording `FakeDriver`.
 - **The suite cannot see whether any service accepts what is built for it.** Every format is written to and read against its published specification; none is proven by having been sent.
 
