@@ -36,9 +36,9 @@ Nothing else is required. There is no autoload; you place a `DotLogRouter` where
 
 ```gdscript
 var router := DotLogRouter.new()
-router.set_context({"service": "arena", "env": "prod", "host": "eu-1"})
+router.set_context({"service": "playlot", "env": "prod", "host": "eu-1"})
 
-router.targets.append(DotLogTargetFile.new("user://logs", "arena"))
+router.targets.append(DotLogTargetFile.new("user://logs", "playlot"))
 router.targets.append(DotLogTargetMemory.new(512))       # the console, and bug reports
 
 add_child(router)                                        # starts on _ready
@@ -88,7 +88,7 @@ Six, and they are the ones every log system converged on. A level is a promise t
 The level is in every line, in every format, always:
 
 ```
-2026-09-14T04:59:08.051Z inf server   booting hostname="arena" port=27015 slots=16
+2026-09-14T04:59:08.051Z inf server   booting hostname="playlot" port=27015 slots=16
 2026-09-14T04:59:09.114Z WRN vote     could not open the vote yet reason=time
 ```
 
