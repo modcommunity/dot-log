@@ -1,4 +1,4 @@
-Where your game's log lines go. Every Dot addon already writes through `DotLog` (from [dot-core](https://github.com/gamespice-platform/core)); dot-log decides what happens to those records next: a rotating file, a memory ring, syslog, a database table or a hosted log service. It also filters, hides secrets, collapses floods and batches, once, in front of every destination. Part of TMC's open source **Dot** collection (MIT licence).
+Where your game's log lines go. Every Gamespice addon already writes through `DotLog` (from [dot-core](https://github.com/gamespice-platform/core)); dot-log decides what happens to those records next: a rotating file, a memory ring, syslog, a database table or a hosted log service. It also filters, hides secrets, collapses floods and batches, once, in front of every destination. Part of TMC's open source **Dot** collection (MIT licence).
 
 > Built with Claude Code. Every addon has a headless test suite and the suites pass, but little of this has met real players yet. Please report rough edges.
 
@@ -105,7 +105,7 @@ A new format is one small file: build the body, name the path and header, say wh
 
 ## Settings
 
-`DotLogConfig` is layered like every Dot config: defaults, JSON file, `DOT_LOG_*` environment, `--log-*` command line. `remote_token` and `sentry_dsn` are accepted from the file only, never from the environment or command line.
+`DotLogConfig` is layered like every Gamespice config: defaults, JSON file, `DOT_LOG_*` environment, `--log-*` command line. `remote_token` and `sentry_dsn` are accepted from the file only, never from the environment or command line.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
