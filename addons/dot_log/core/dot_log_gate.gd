@@ -154,7 +154,8 @@ func _channel_allowed(channel: String) -> bool:
 
 
 func _matches(channel: String, list: PackedStringArray) -> bool:
-	for pattern: String in list:
+	for listed: String in list:
+		var pattern := DotLog.display_channel(listed)
 		if pattern == channel:
 			return true
 		if pattern.ends_with("*") and channel.begins_with(pattern.substr(0, pattern.length() - 1)):

@@ -72,7 +72,7 @@ func matching(
 	for event: Dictionary in _ring:
 		if int(event.get("level", 2)) < level:
 			continue
-		if channel != "" and String(event.get("channel", "")) != channel:
+		if channel != "" and String(event.get("channel", "")) != DotLog.display_channel(channel):
 			continue
 		if lower != "" and not _contains(event, lower):
 			continue

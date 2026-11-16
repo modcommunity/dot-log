@@ -136,6 +136,9 @@ func _test_event() -> void:
 	var second: Dictionary = DotLogEvent.from_record(record)
 	_check("the sequence advances", int(second["seq"]) > int(event["seq"]))
 
+	var legacy: Dictionary = DotLogEvent.from_record(_record(DotLog.Level.INFO, "dot.content.index"))
+	_check("a legacy dot channel ships as gs", str(legacy["channel"]) == "gs.content.index", null, str(legacy["channel"]))
+
 	_check("the record it came from is untouched", not record.has("time_ms"))
 
 	var stamp: String = DotLogEvent.iso8601(event)
@@ -285,6 +288,11 @@ func _test_gate() -> void:
 
 	channelled.deny_channels = PackedStringArray(["net"])
 	_check("a deny beats an allow", not channelled.allows(_event(DotLog.Level.INFO, "net")))
+
+	var renamed: DotLogGate = DotLogGate.new()
+	renamed.channels = PackedStringArray(["dot.bot*", "gs.cloud"])
+	_check("an old dot pattern matches the gs channel", renamed.allows(_event(DotLog.Level.INFO, "dot.bot.nav")))
+	_check("a gs pattern matches a channel still named dot", renamed.allows(_event(DotLog.Level.INFO, "dot.cloud")))
 
 	var sampled: DotLogGate = DotLogGate.new()
 	sampled.trace_sample = 0.0

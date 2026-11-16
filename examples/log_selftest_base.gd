@@ -2,7 +2,7 @@ extends Node
 
 ## Shared state and harness for the dot-log self-test; the checks live in the subclasses.
 
-const CHECKS := 457
+const CHECKS := 460
 
 ## Sections entered against sections run to their last line. A runtime error aborts a
 ## section silently, so an early bail-out counts as unfinished on purpose; CHECKS is the

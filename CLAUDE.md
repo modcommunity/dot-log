@@ -4,7 +4,7 @@ Where a log record goes after `DotLog` emits it: rotating files, a ring in memor
 
 Read the family [CLAUDE.md](../../CLAUDE.md) first (its logging rules are the ones this addon makes operational); this file is only what is specific to dot-log.
 
-**The distributable is `addons/dot_log/`.** It requires dot-core API level 16 or later (`DotAddonConfig.apply_file`) and nothing else (symlinked, `.gitignore`).
+**The distributable is `addons/dot_log/`.** It requires dot-core API level 36 or later (`DotAddonConfig.apply_file`, `DotLog.display_channel`) and nothing else (symlinked, `.gitignore`).
 
 ## Read before
 

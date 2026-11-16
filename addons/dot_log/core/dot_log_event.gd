@@ -65,7 +65,7 @@ static func from_record(record: Dictionary) -> Dictionary:
 		"level": level,
 		"level_name": String(record.get("level_name", DotLog.level_name(level))),
 		"severity": severity_name(level),
-		"channel": String(record.get("channel", "")),
+		"channel": DotLog.display_channel(String(record.get("channel", ""))),
 		"message": String(record.get("message", "")),
 		"fields": record.get("fields", {}),
 		"ticks_ms": ticks,
