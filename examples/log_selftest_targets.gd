@@ -260,6 +260,21 @@ func _test_http_target() -> void:
 	await target.flush()
 	_check("and an open circuit sends nothing", http.requests.size() == before)
 
+	await _check_http_variants()
+
+	_check("it describes itself", target.describe().has("circuit_open_for"))
+
+	# DotHttp is a Node, and a Node nobody parented is a Node nobody frees. Left alone
+	# these show up as "ObjectDB instances were leaked at exit", which is a real warning
+	# about a real leak and must not be background noise in this suite's output.
+	http.free()
+
+	_line("")
+	_done()
+
+
+## Immediate sends, path joining and the targets that cannot open or accept.
+func _check_http_variants() -> void:
 	var urgent_http: FakeHttp = FakeHttp.new()
 	var urgent: DotLogTargetHttp = DotLogTargetHttp.new(DotLogFormatNdjson.new(), "https://logs.example")
 	urgent.http = urgent_http
@@ -287,18 +302,8 @@ func _test_http_target() -> void:
 	var tracker: DotLogTargetHttp = DotLogTargetHttp.new(DotLogFormatSentry.new(), "")
 	_check("an error tracker with no gate takes WARN and above", tracker.accepts(_event(DotLog.Level.WARN)))
 	_check("and nothing below it", not tracker.accepts(_event(DotLog.Level.INFO)))
-
-	_check("it describes itself", target.describe().has("circuit_open_for"))
-
-	# DotHttp is a Node, and a Node nobody parented is a Node nobody frees. Left alone
-	# these show up as "ObjectDB instances were leaked at exit", which is a real warning
-	# about a real leak and must not be background noise in this suite's output.
-	http.free()
 	urgent_http.free()
 	no_endpoint_http.free()
-
-	_line("")
-	_done()
 
 
 func _test_router() -> void:
@@ -345,6 +350,27 @@ func _test_router() -> void:
 	router.set_tag("map", "de_dust")
 	_check("a tag reaches the context", str(router.context["map"]) == "de_dust")
 
+	await _check_router_targets(router)
+	await _check_router_urgent_flush(router)
+
+	_check("describe_lines says what is going on", ",".join(router.describe_lines()).contains("log router"))
+	_check("and describe counts records", int(router.describe()["received"]) > 0)
+
+	await router.shutdown()
+	_check("shutdown detaches", not router.is_started())
+
+	var after: int = memory.size()
+	DotLog.info("net", "after shutdown")
+	_check("and nothing arrives afterwards", memory.size() == after)
+
+	router.queue_free()
+	DotPaths.remove_tree("user://selftest-router")
+	DotLog.set_level(DotLog.Level.ERROR)
+	_line("")
+	_done()
+
+## Targets added and removed while the router runs.
+func _check_router_targets(router: DotLogRouter) -> void:
 	var file: DotLogTargetFile = DotLogTargetFile.new("user://selftest-router", "r")
 	var added: DotResult = await router.add_target(file)
 	_check("a target can be added at runtime", added.ok and router.targets.size() == 2, added)
@@ -363,7 +389,9 @@ func _test_router() -> void:
 	await router.add_target(broken)
 	_check("a target that cannot open is disabled, not fatal", not broken.enabled and router.is_started())
 
-	# A FATAL must not be sitting in a buffer when the process goes.
+
+## A FATAL must not be sitting in a buffer when the process goes.
+func _check_router_urgent_flush(router: DotLogRouter) -> void:
 	var fatal_http: FakeHttp = FakeHttp.new()
 	var shipper: DotLogTargetHttp = DotLogTargetHttp.new(DotLogFormatNdjson.new(), "https://logs.example")
 	shipper.http = fatal_http
@@ -379,21 +407,6 @@ func _test_router() -> void:
 	await router.remove_target(shipper)
 	fatal_http.free()
 
-	_check("describe_lines says what is going on", ",".join(router.describe_lines()).contains("log router"))
-	_check("and describe counts records", int(router.describe()["received"]) > 0)
-
-	await router.shutdown()
-	_check("shutdown detaches", not router.is_started())
-
-	var after: int = memory.size()
-	DotLog.info("net", "after shutdown")
-	_check("and nothing arrives afterwards", memory.size() == after)
-
-	router.queue_free()
-	DotPaths.remove_tree("user://selftest-router")
-	DotLog.set_level(DotLog.Level.ERROR)
-	_line("")
-	_done()
 
 
 func _test_router_reentrancy() -> void:
