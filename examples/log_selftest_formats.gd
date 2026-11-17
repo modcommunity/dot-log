@@ -9,14 +9,14 @@ func _test_format_ndjson() -> void:
 	format.token = "secret"
 	var body: String = format.build(
 		[_event(DotLog.Level.INFO, "net", "one"), _event(DotLog.Level.WARN, "net", "two")],
-		{"service": "arena"}
+		{"service": "fc"}
 	).get_string_from_utf8()
 
 	var lines: PackedStringArray = body.split("\n", false)
 	_check("one object per line", lines.size() == 2, null, body)
 	_check("each parses", typeof(_parse(lines[0])) == TYPE_DICTIONARY)
 	_check("the body ends with a newline", body.ends_with("\n"))
-	_check("the context is on each line", str((_parse(lines[1]) as Dictionary)["service"]) == "arena")
+	_check("the context is on each line", str((_parse(lines[1]) as Dictionary)["service"]) == "fc")
 	_check("the token goes in a bearer header", str(format.headers()["Authorization"]) == "Bearer secret")
 	_check("the content type is ndjson", format.content_type() == "application/x-ndjson")
 
@@ -40,7 +40,7 @@ func _test_format_loki() -> void:
 		_event(DotLog.Level.INFO, "player.roster", "joined", {"peer": 4}),
 		_event(DotLog.Level.INFO, "player.roster", "left"),
 		_event(DotLog.Level.ERROR, "net", "dropped"),
-	], {"service": "arena", "env": "prod"}).get_string_from_utf8())
+	], {"service": "fc", "env": "prod"}).get_string_from_utf8())
 
 	_check("the payload has streams", typeof(body) == TYPE_DICTIONARY and (body as Dictionary).has("streams"))
 	var streams: Array = (body as Dictionary)["streams"]
@@ -78,7 +78,7 @@ func _test_format_elastic() -> void:
 	format.index = "dot-logs-%Y.%m.%d"
 	format.token = "k"
 
-	var body: String = format.build([_event(DotLog.Level.WARN, "net", "one", {"peer": 4})], {"service": "arena"}).get_string_from_utf8()
+	var body: String = format.build([_event(DotLog.Level.WARN, "net", "one", {"peer": 4})], {"service": "fc"}).get_string_from_utf8()
 	var lines: PackedStringArray = body.split("\n", false)
 	_check("an action line and a document line", lines.size() == 2, null, body)
 
@@ -89,7 +89,7 @@ func _test_format_elastic() -> void:
 
 	var doc: Dictionary = _parse(lines[1])
 	_check("the document uses the common schema", doc.has("@timestamp") and (doc["log"] as Dictionary).has("level"))
-	_check("with the context", str(doc["service"]) == "arena")
+	_check("with the context", str(doc["service"]) == "fc")
 	_check("and fields prefixed against a mapping conflict", doc.has("f_peer"))
 	_check("the body ends with a newline", body.ends_with("\n"))
 	_check("the content type is ndjson", format.content_type() == "application/x-ndjson")
@@ -123,7 +123,7 @@ func _test_format_splunk() -> void:
 	format.token = "hec-token"
 	format.splunk_index = "games"
 
-	var body: String = format.build([_event(DotLog.Level.INFO, "net", "one", {"peer": 4})], {"service": "arena", "host": "eu-1"}).get_string_from_utf8()
+	var body: String = format.build([_event(DotLog.Level.INFO, "net", "one", {"peer": 4})], {"service": "fc", "host": "eu-1"}).get_string_from_utf8()
 	var doc: Dictionary = _parse(body.split("\n", false)[0])
 
 	_check("the time is seconds, not milliseconds", float(doc["time"]) < 100000000000.0, null, str(doc["time"]))
@@ -155,12 +155,12 @@ func _test_format_datadog() -> void:
 
 	var rows: Variant = _parse(format.build([
 		_event(DotLog.Level.WARN, "net", "one", {"peer": 4})
-	], {"service": "arena", "env": "prod", "host": "eu-1"}).get_string_from_utf8())
+	], {"service": "fc", "env": "prod", "host": "eu-1"}).get_string_from_utf8())
 
 	_check("the payload is an array", typeof(rows) == TYPE_ARRAY)
 	var row: Dictionary = (rows as Array)[0]
 	_check("the level is a name Datadog knows", str(row["status"]) == "warning")
-	_check("the service comes from the context", str(row["service"]) == "arena")
+	_check("the service comes from the context", str(row["service"]) == "fc")
 	_check("the host is its own field", str(row["hostname"]) == "eu-1")
 	_check("ddtags is a comma-separated string, not an object", typeof(row["ddtags"]) == TYPE_STRING and str(row["ddtags"]).contains("region:eu"))
 	_check("with the context tags", str(row["ddtags"]).contains("env:prod"))
@@ -185,7 +185,7 @@ func _test_format_seq() -> void:
 
 	var body: String = format.build([
 		_event(DotLog.Level.WARN, "net", "player connected", {"peer": 4, "@t": "sneaky"})
-	], {"service": "arena"}).get_string_from_utf8()
+	], {"service": "fc"}).get_string_from_utf8()
 	var doc: Dictionary = _parse(body.split("\n", false)[0])
 
 	_check("the timestamp is @t", doc.has("@t") and str(doc["@t"]).ends_with("Z"))
@@ -194,7 +194,7 @@ func _test_format_seq() -> void:
 	_check("the message is a template", doc.has("@mt") and str(doc["@mt"]).contains("player connected"))
 	_check("with a hole per field", str(doc["@mt"]).contains("{peer}"), null, str(doc["@mt"]))
 	_check("the field is a property", int(doc["peer"]) == 4)
-	_check("the context is too", str(doc["service"]) == "arena")
+	_check("the context is too", str(doc["service"]) == "fc")
 	_check("the channel is a property", str(doc["Channel"]) == "net")
 
 	var info: Dictionary = _parse(format.build([_event(DotLog.Level.INFO)], {}).get_string_from_utf8().split("\n", false)[0])
@@ -218,7 +218,7 @@ func _test_format_gelf() -> void:
 	var format: DotLogFormatGelf = DotLogFormatGelf.new()
 	var doc: Dictionary = format.message_for(
 		_event(DotLog.Level.ERROR, "net", "dropped", {"peer": 4, "id": "x", "_already": 1}),
-		{"service": "arena", "host": "eu-1"}
+		{"service": "fc", "host": "eu-1"}
 	)
 
 	_check("the version is 1.1", str(doc["version"]) == "1.1")
@@ -229,7 +229,7 @@ func _test_format_gelf() -> void:
 	_check("a custom field is underscore-prefixed", doc.has("_peer"))
 	_check("a field called id is renamed, because _id is forbidden", doc.has("_field_id") and not doc.has("_id"))
 	_check("an already-prefixed field is not doubled", doc.has("_already"))
-	_check("the context is a field", str(doc["_service"]) == "arena")
+	_check("the context is a field", str(doc["_service"]) == "fc")
 
 	var empty: Dictionary = format.message_for(_event(DotLog.Level.INFO, "net", ""), {})
 	_check("an empty message gets a placeholder, because empty is rejected", str(empty["short_message"]) != "")
@@ -252,7 +252,7 @@ func _test_format_otlp() -> void:
 	var format: DotLogFormatOtlp = DotLogFormatOtlp.new()
 	var body: Variant = _parse(format.build([
 		_event(DotLog.Level.ERROR, "net", "dropped", {"peer": 4, "ratio": 0.5, "ok": true})
-	], {"service": "arena", "env": "prod", "version": "1.2.3"}).get_string_from_utf8())
+	], {"service": "fc", "env": "prod", "version": "1.2.3"}).get_string_from_utf8())
 
 	_check("the payload is resourceLogs", typeof(body) == TYPE_DICTIONARY and (body as Dictionary).has("resourceLogs"))
 
@@ -310,7 +310,7 @@ func _test_format_sentry() -> void:
 
 	var body: String = format.build([
 		_event(DotLog.Level.ERROR, "net", "it broke", {"peer": 4})
-	], {"service": "arena", "env": "prod", "host": "eu-1"}).get_string_from_utf8()
+	], {"service": "fc", "env": "prod", "host": "eu-1"}).get_string_from_utf8()
 
 	var lines: PackedStringArray = body.split("\n", false)
 	_check("an envelope is a header, an item header and a payload", lines.size() == 3, null, str(lines.size()))

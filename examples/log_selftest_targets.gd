@@ -79,8 +79,8 @@ func _test_syslog_format() -> void:
 
 	var syslog: DotLogTargetSyslog = DotLogTargetSyslog.new("127.0.0.1", 514)
 	syslog.host_name = "eu-1"
-	syslog.app_name = "arena"
-	syslog.set_context({"service": "arena"})
+	syslog.app_name = "fc"
+	syslog.set_context({"service": "fc"})
 
 	var message: String = syslog.format_message(
 		_event(DotLog.Level.ERROR, "net", "peer refused", {"peer": 4})
@@ -89,10 +89,10 @@ func _test_syslog_format() -> void:
 	# facility 16 * 8 + severity 3 = 131
 	_check("the priority is facility and severity", message.begins_with("<131>1 "), null, message)
 	_check("the version is 1", message.split(" ")[0].ends_with("1") or message.contains(">1 "))
-	_check("the host and app are there", message.contains("eu-1") and message.contains("arena"), null, message)
+	_check("the host and app are there", message.contains("eu-1") and message.contains("fc"), null, message)
 	_check("the channel is the message id", message.contains(" net "), null, message)
 	_check("the fields are structured data", message.contains("[dot@32473") and message.contains("peer=\"4\""), null, message)
-	_check("the context is too", message.contains("service=\"arena\""))
+	_check("the context is too", message.contains("service=\"fc\""))
 	_check("and the message is last", message.ends_with("peer refused"), null, message)
 
 	var warn: String = syslog.format_message(_event(DotLog.Level.WARN, "vote", "waiting"))
@@ -161,7 +161,7 @@ func _test_sql_target() -> void:
 	_check("indexed with the channel, which is how it is queried", ddl[2].contains("(channel, level)"), null, ddl[2])
 
 	var events: Array = [_event(DotLog.Level.WARN, "net", "one"), _event(DotLog.Level.INFO, "net", "two")]
-	var insert: Dictionary = DotLogSqlSchema.insert_statement("dot_log", DotLogSqlSchema.Dialect.SQLITE, events, {"service": "arena"})
+	var insert: Dictionary = DotLogSqlSchema.insert_statement("dot_log", DotLogSqlSchema.Dialect.SQLITE, events, {"service": "fc"})
 	_check("one statement covers the batch", str(insert["sql"]).begins_with("INSERT INTO") and str(insert["sql"]).count("(?") == 2)
 	_check("with a parameter per column per row", (insert["params"] as Array).size() == DotLogSqlSchema.COLUMNS.size() * 2)
 	_check("the message is a parameter, never inline", not str(insert["sql"]).contains("one"))
@@ -169,7 +169,7 @@ func _test_sql_target() -> void:
 	_check("the level binds as a number", typeof(bound[2]) == TYPE_INT and int(bound[2]) == DotLog.Level.WARN)
 	_check("and its name beside it", str(bound[3]) == "WARN")
 	_check("so ORDER BY level is severity order", int(bound[2]) > int(bound[2 + DotLogSqlSchema.COLUMNS.size()]), null, "WARN then INFO")
-	_check("and the context is JSON", str((insert["params"] as Array)[7]).contains("arena"))
+	_check("and the context is JSON", str((insert["params"] as Array)[7]).contains("fc"))
 
 	var prune: Dictionary = DotLogSqlSchema.prune_statement("dot_log", DotLogSqlSchema.Dialect.SQLITE, 1000)
 	_check("pruning is a parameterised delete", str(prune["sql"]).begins_with("DELETE FROM") and int((prune["params"] as Array)[0]) == 1000)
@@ -314,7 +314,7 @@ func _test_router() -> void:
 	router.flush_interval_sec = 60.0
 	var memory: DotLogTargetMemory = DotLogTargetMemory.new(32)
 	router.targets.append(memory)
-	router.set_context({"service": "arena", "env": "test"})
+	router.set_context({"service": "fc", "env": "test"})
 	add_child(router)
 
 	var started: DotResult = await router.start()

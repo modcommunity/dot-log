@@ -50,12 +50,12 @@ func _test_config() -> void:
 	_check("and so is the cli prefix", config.cli_prefix() == "--log-")
 
 	var applied: PackedStringArray = config.apply_dictionary({
-		"level": "warn", "file_basename": "arena", "memory_capacity": 64,
+		"level": "warn", "file_basename": "fc", "memory_capacity": 64,
 	})
-	_check("a dictionary layer applies", config.level == "warn" and config.file_basename == "arena" and applied.size() == 3)
+	_check("a dictionary layer applies", config.level == "warn" and config.file_basename == "fc" and applied.size() == 3)
 	_check("and an unknown key is remembered, not fatal", config.apply_dictionary({"nonsense": 1}).size() == 0 and config.unknown_keys.size() > 0)
 
-	config.service = "arena"
+	config.service = "fc"
 	config.env = "prod"
 	var tags: Dictionary = config.context_tags()
 	_check("context tags skip what is empty", not tags.has("instance"))
@@ -70,7 +70,7 @@ func _test_config() -> void:
 	_check("carrying the token", loki.token == "t")
 	_check("and the fixed tags", (loki as DotLogFormatLoki).static_labels.has("region"))
 	config.remote_format = "otlp"
-	_check("otlp takes the service name", (config.make_format() as DotLogFormatOtlp).service_name == "arena")
+	_check("otlp takes the service name", (config.make_format() as DotLogFormatOtlp).service_name == "fc")
 	config.remote_format = "elasticsearch"
 	_check("an alias resolves", config.make_format().format_name() == "elasticsearch")
 	config.remote_format = "nonsense"
@@ -158,7 +158,7 @@ func _test_config_builds() -> void:
 	_section("config builds a router")
 
 	var config: DotLogConfig = DotLogConfig.new()
-	config.service = "arena"
+	config.service = "fc"
 	config.env = "test"
 	config.file_enabled = true
 	config.file_directory = "user://selftest-config"
@@ -172,7 +172,7 @@ func _test_config_builds() -> void:
 	_check("with the file and the memory ring", router.targets.size() == 2)
 	_check("a redactor", router.redactor != null)
 	_check("and a gate, because dedupe was asked for", router.gate != null and router.gate.dedupe_window_sec == 5.0)
-	_check("the context is set", str(router.context["service"]) == "arena")
+	_check("the context is set", str(router.context["service"]) == "fc")
 	_check("and the interval", router.flush_interval_sec == 30.0)
 
 	config.remote_enabled = true

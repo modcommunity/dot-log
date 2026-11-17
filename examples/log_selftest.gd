@@ -113,8 +113,8 @@ func _test_event_values() -> void:
 	_check("a nested dictionary is walked", typeof(((nested as Dictionary)["a"] as Dictionary)["b"]) == TYPE_STRING)
 
 	var event: Dictionary = _event(DotLog.Level.INFO, "net", "joined", {"peer": 4, "at": Vector3.ZERO})
-	var flat: Dictionary = DotLogEvent.flatten(event, {"service": "arena", "env": "prod"})
-	_check("flatten carries the context", str(flat["service"]) == "arena" and str(flat["env"]) == "prod")
+	var flat: Dictionary = DotLogEvent.flatten(event, {"service": "fc", "env": "prod"})
+	_check("flatten carries the context", str(flat["service"]) == "fc" and str(flat["env"]) == "prod")
 	_check("and the envelope", flat.has("time") and str(flat["level"]) == "info" and str(flat["message"]) == "joined")
 	_check("and the fields", int(flat["peer"]) == 4 and typeof(flat["at"]) == TYPE_STRING)
 
@@ -124,11 +124,11 @@ func _test_event_values() -> void:
 	_check("a field CAN shadow the message, and that is known", str(shadowed["message"]) == "not this one")
 
 	var context_win: Dictionary = DotLogEvent.flatten(
-		_event(DotLog.Level.INFO, "net", "x", {}), {"service": "arena"}
+		_event(DotLog.Level.INFO, "net", "x", {}), {"service": "fc"}
 	)
-	_check("context is written before the envelope", str(context_win["service"]) == "arena")
+	_check("context is written before the envelope", str(context_win["service"]) == "fc")
 
-	var json: String = DotLogEvent.flatten_json(event, {"service": "arena"}, "f_")
+	var json: String = DotLogEvent.flatten_json(event, {"service": "fc"}, "f_")
 	var decoded: Variant = _parse(json)
 	_check("flatten_json is parseable", typeof(decoded) == TYPE_DICTIONARY, null, json)
 	_check("and prefixes the fields when asked", (decoded as Dictionary).has("f_peer"))
@@ -427,7 +427,7 @@ func _test_file_target() -> void:
 
 	var json_file: DotLogTargetFile = DotLogTargetFile.new(dir, "json")
 	json_file.json_lines = true
-	json_file.set_context({"service": "arena"})
+	json_file.set_context({"service": "fc"})
 	json_file.open()
 	json_file.write(_event(DotLog.Level.INFO, "net", "structured", {"peer": 7}))
 	json_file.flush()
@@ -435,7 +435,7 @@ func _test_file_target() -> void:
 	var json_text: DotResult = DotPaths.read_text(json_file.file_path())
 	var decoded: Variant = _parse(str(json_text.value).strip_edges())
 	_check("json lines parse", typeof(decoded) == TYPE_DICTIONARY, json_text, str(json_text.value))
-	_check("carrying the context", str((decoded as Dictionary)["service"]) == "arena")
+	_check("carrying the context", str((decoded as Dictionary)["service"]) == "fc")
 	_check("and the fields", int((decoded as Dictionary)["peer"]) == 7)
 	json_file.close()
 
