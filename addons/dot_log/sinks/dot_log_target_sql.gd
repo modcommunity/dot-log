@@ -3,7 +3,7 @@ class_name DotLogTargetSql
 extends DotLogTarget
 
 ## Writes the log into a database table, in batches.
-## Godot ships no database driver, so the driver is duck-typed ([code]execute(sql, params) -> DotResult[/code], the shape of dot-moderation's [code]DotSqlDriver[/code]) and everything else is in [DotLogSqlSchema].
+## Godot ships no database driver, so the driver is duck-typed ([code]execute(sql, params) -> DotResult[/code], the shape of GameSpice Moderation's [code]DotSqlDriver[/code]) and everything else is in [DotLogSqlSchema].
 ## Keep the file target on too: this one has a dependency, so it can be unavailable.
 
 const SELF_CHANNEL := "log.sql"

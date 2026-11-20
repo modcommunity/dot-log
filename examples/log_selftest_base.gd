@@ -1,6 +1,6 @@
 extends Node
 
-## Shared state and harness for the dot-log self-test; the checks live in the subclasses.
+## Shared state and harness for the GameSpice Log self-test; the checks live in the subclasses.
 
 const CHECKS := 460
 

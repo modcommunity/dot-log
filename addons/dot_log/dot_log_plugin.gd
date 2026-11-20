@@ -1,7 +1,7 @@
 @tool
 extends EditorPlugin
 
-## Editor entry point for dot-log. Registers the router as an inspector type.
+## Editor entry point for GameSpice Log. Registers the router as an inspector type.
 ## No autoload: a server and a client in one process need two routers. Only the [Node] is registered; Resources already appear in typed slots.
 
 const _ICON := "res://addons/dot_log/icon_placeholder.svg"

@@ -226,7 +226,7 @@ func _send(batch: Array[Dictionary]) -> DotResult:
 
 
 ## Whether these exact bytes could ever be accepted.
-## Not [method DotResult.is_retryable]: dot-core maps unknown non-2xx to a retryable CODE_HTTP, but nobody will fix a refused batch, so it would block the queue forever.
+## Not [method DotResult.is_retryable]: GameSpice Core maps unknown non-2xx to a retryable CODE_HTTP, but nobody will fix a refused batch, so it would block the queue forever.
 ## A 4xx means refused except 408 and 429; a 5xx or transport failure is worth another go.
 func _worth_retrying(res: DotResult) -> bool:
 	if res == null or res.error == null:

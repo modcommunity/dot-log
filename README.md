@@ -1,10 +1,10 @@
 [![Log - GameSpice addon](docs/banner.png)](https://moddingcommunity.com/a/59-gs-log)
 
-Where your game's log lines go. Every [**GameSpice**](https://gamespice.net) addon already writes through `DotLog` (from [dot-core](https://github.com/gamespice-platform/core)); dot-log decides what happens to those records next: a rotating file, a memory ring, syslog, a database table or a hosted log service. It also filters, hides secrets, collapses floods and batches, once, in front of every destination. Part of TMC's open source **GameSpice** collection (MIT licence).
+Where your game's log lines go. Every [**GameSpice**](https://gamespice.net) addon already writes through `DotLog` (from [GameSpice Core](https://github.com/gamespice-platform/core)); dot-log decides what happens to those records next: a rotating file, a memory ring, syslog, a database table or a hosted log service. It also filters, hides secrets, collapses floods and batches, once, in front of every destination. Part of TMC's open source **GameSpice** collection (MIT licence).
 
 > Built with Claude Code. Every addon has a headless test suite and the suites pass, but little of this has met real players yet. Please report rough edges.
 
-`DotLog` stays the front door and your calls do not change. dot-log plugs in behind it.
+`DotLog` stays the front door and your calls do not change. GameSpice Log plugs in behind it.
 
 ## Install
 
@@ -50,7 +50,7 @@ add_child(config.build_router())
 
 ## What it protects you from
 
-| Problem | What dot-log does |
+| Problem | What GameSpice Log does |
 | --- | --- |
 | A flood becomes an outage (one bad packet in a loop writes thousands of identical lines). | Collapses identical lines into one line and a count, rate-limits per channel and reports how many it suppressed. |
 | A collector goes away and the queue eats all memory. | Every queue is bounded in records and in bytes (defaults 4096 records and 8 MiB), has a drop policy and counts what it dropped. |
@@ -68,7 +68,7 @@ add_child(config.build_router())
 | `ERROR` | The operation failed | Someone, today. |
 | `FATAL` | The process cannot continue | Someone, now. |
 
-`FATAL` is for a crash or total breakage (boot failed, the listener could not open). dot-log flushes every target the moment one arrives, because a buffered record is lost when the process dies. `log test fatal` is refused for that reason.
+`FATAL` is for a crash or total breakage (boot failed, the listener could not open). GameSpice Log flushes every target the moment one arrives, because a buffered record is lost when the process dies. `log test fatal` is refused for that reason.
 
 Every line carries its level in a fixed width, so messages line up:
 
@@ -126,7 +126,7 @@ A new format is one small file: build the body, name the path and header, say wh
 | `memory_enabled`, `memory_capacity` | true, 512 | The memory ring and its size in records. |
 | `syslog_enabled` | false | Send to syslog. |
 | `syslog_host`, `syslog_port`, `syslog_tcp` | `127.0.0.1`, 514, false | Where, and TCP instead of UDP. |
-| `syslog_app`, `syslog_level` | `dot-server`, `info` | App name and lowest level. |
+| `syslog_app`, `syslog_level` | `gs-server`, `info` | App name and lowest level. |
 | `remote_enabled` | false | Ship to a collector. |
 | `remote_format`, `remote_url` | `ndjson`, empty | Which format, and where. |
 | `remote_token`, `sentry_dsn` | empty | Credentials (file only). |
@@ -143,7 +143,7 @@ A new format is one small file: build the body, name the path and header, say wh
 
 ## The `log` command
 
-`DotLogCommands` is a console command that works with a client or server console without dot-log depending on either:
+`DotLogCommands` is a console command that works with a client or server console without GameSpice Log depending on either:
 
 ```gdscript
 console.add_source(DotConsoleBridge.wrap(DotLogCommands.new(router), "log"))      # dot-console

@@ -1,6 +1,6 @@
-# dot-log
+# GameSpice Log
 
-Where a log record goes after `DotLog` emits it: rotating files, a ring in memory, RFC 5424 syslog, a SQL table through any driver, and batched HTTP shipping in the wire formats nine log services actually accept, with gating, redaction, batching and back pressure done once, in front of all of them. dot-core keeps the front door; this is the sink layer.
+Where a log record goes after `DotLog` emits it: rotating files, a ring in memory, RFC 5424 syslog, a SQL table through any driver, and batched HTTP shipping in the wire formats nine log services actually accept, with gating, redaction, batching and back pressure done once, in front of all of them. GameSpice Core keeps the front door; this is the sink layer.
 
 Read the family [CLAUDE.md](../../CLAUDE.md) first (its logging rules are the ones this addon makes operational); this file is only what is specific to dot-log.
 
@@ -33,7 +33,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first (its logging rules are the on
 
 ## Rules that bite
 
-- `DotLog` stays in dot-core and unchanged; this addon is one sink and everything downstream. No consumer changes to use it. [design](docs/design.md#the-split-with-dot-core-and-why-it-is-where-it-is)
+- `DotLog` stays in GameSpice Core and unchanged; this addon is one sink and everything downstream. No consumer changes to use it. [design](docs/design.md#the-split-with-dot-core-and-why-it-is-where-it-is)
 - `mirror_min_level` defaults to `ERROR`: warnings print one line, without the engine's unsuppressible trace. [design](docs/design.md#the-stack-trace-problem-and-what-fixed-it)
 - No seventh level. SQL keeps `level` as an integer beside `level_name`; FATAL starts a flush of every target (`flush_at_level`); `log test fatal` is refused; `DotLog.at` refuses `OFF`. [design](docs/design.md#levels-and-the-one-that-is-a-promise)
 - **A target never logs from inside `write()`.** Internal notices are returned as synthetic events (`drain_drop_notice`, `drain_summaries`) and injected by the router outside `_dispatching`. [design](docs/design.md#the-reentrancy-guard-is-load-bearing)
@@ -44,7 +44,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first (its logging rules are the on
 - Loki labels and Sentry tags stay a fixed short list; 64-bit numbers are strings on the wire. [design](docs/design.md#decisions-worth-not-reversing)
 - Every format implements `interpret()`: a 200 is not a delivery. A 4xx is permanent except 408 and 429 (`_worth_retrying`). [design](docs/design.md#decisions-worth-not-reversing)
 - `DotLogCommands` stays duck-typed (`names`, `claims`, `execute`, `complete`, `help_for`); a completion candidate is a whole command line. Never name `DotConCommand`. [wiring](docs/wiring.md#log-on-a-dedicated-server)
-- dot-server recognises a router by `describe_lines` and `flush_all`; keep both. [wiring](docs/wiring.md#what-wire-it-in-means)
+- GameSpice Server recognises a router by `describe_lines` and `flush_all`; keep both. [wiring](docs/wiring.md#what-wire-it-in-means)
 
 ## Open
 

@@ -90,7 +90,7 @@ func open() -> DotResult:
 			)
 	else:
 		if DotPlatform.is_web():
-			# There is no TCP capability question to ask dot-core: a browser has no raw
+			# There is no TCP capability question to ask GameSpice Core: a browser has no raw
 			# sockets of any kind, and has_udp() already answers false there for the same
 			# underlying reason.
 			return DotResult.fail(

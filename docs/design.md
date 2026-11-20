@@ -2,13 +2,13 @@
 
 What dot-log is in relation to dot-core's `DotLog`, what the levels mean operationally, and the decisions in the pipeline worth not reversing. How it reaches a server and its console is [wiring.md](wiring.md); the bugs are [history.md](history.md).
 
-## The split with dot-core, and why it is where it is
+## The split with GameSpice Core, and why it is where it is
 
-`DotLog`, the class nearly every file in this family calls, **stays in dot-core and does not change**. It is a static class with a level, a per-channel level, a console format and a list of `Callable` sinks. That is the front door and it must keep working in a project that has dot-core and nothing else.
+`DotLog`, the class nearly every file in this family calls, **stays in GameSpice Core and does not change**. It is a static class with a level, a per-channel level, a console format and a list of `Callable` sinks. That is the front door and it must keep working in a project that has GameSpice Core and nothing else.
 
-dot-log is the back half: it registers one sink and owns everything downstream of it. Which means **no consumer has to change to gain any of this**, and a project that does not want it is not carrying it.
+GameSpice Log is the back half: it registers one sink and owns everything downstream of it. Which means **no consumer has to change to gain any of this**, and a project that does not want it is not carrying it.
 
-Two things do live in dot-core and look like duplication:
+Two things do live in GameSpice Core and look like duplication:
 
 - **`DotLogSink`** is a small rotating file sink. It stays. A project with no dependency but dot-core needs a log file, and `DotLogTargetFile` is not available to it. dot-log's file target is a superset (per-target gate, JSON lines, daily rotation, the router's context) and it participates in the pipeline. Deliberate duplication, per the family rule.
 - **`DotLog.mirror_min_level`**, below.
@@ -23,7 +23,7 @@ The consequence, which is what prompted this addon: a recoverable and entirely e
 
 ## Levels, and the one that is a promise
 
-Six, in dot-core, and dot-log adds no seventh. What this addon adds is that they mean something operationally:
+Six, in GameSpice Core, and GameSpice Log adds no seventh. What this addon adds is that they mean something operationally:
 
 - **The level is in every line and every payload**, at a fixed width in the console (`DotLog.level_column`, which honours `DotLog.level_style` so a process is consistent) and under whatever name each collector uses: `level`, `status`, `@l`, `severityNumber`, the RFC 5424 priority byte.
 - **In SQL it is two columns.** `level INTEGER` to sort and filter on, `level_name TEXT` to read, indexed as `(channel, level)`. Both, because `ORDER BY level_name` gives `ERROR < FATAL < INFO < WARN` (alphabetical and almost exactly the wrong order), and because a dashboard that has to `CASE WHEN` a string into a severity is a dashboard nobody writes twice. `DotLog.format_json` carries a numeric `severity` beside its `level` name for the same reason.
@@ -61,7 +61,7 @@ The suite has a `LoudTarget` that does the forbidden thing on purpose. If that c
 
 **Values are coerced with `DotLogEvent.json_value`, and anything exotic becomes a string.** `JSON.stringify` does not fail on a `Vector3`: it emits an array; a `Node` becomes `null`; a `Callable` becomes `{}`. A position field silently arriving as an unqueryable three-element list is found months later by somebody trying to search on it.
 
-**`DotLogTargetSql`'s driver is duck-typed, not a class of ours.** Anything with `execute(sql, params) -> DotResult` works, which is deliberately the shape dot-sql's drivers have. An operator who set up a database for bans should not set up a second one for logs, and the two addons must not have to know about each other to share it. `DotLogSqlSchema` holds the DDL and parameterised statements so they are testable without a database.
+**`DotLogTargetSql`'s driver is duck-typed, not a class of ours.** Anything with `execute(sql, params) -> DotResult` works, which is deliberately the shape GameSpice SQL's drivers have. An operator who set up a database for bans should not set up a second one for logs, and the two addons must not have to know about each other to share it. `DotLogSqlSchema` holds the DDL and parameterised statements so they are testable without a database.
 
 **Loki's labels are a fixed short list.** Label cardinality is how people break Loki: one label carrying a player id turns one stream into a hundred thousand index entries. Everything else goes in the line, where `| json` can still filter on it and cannot take the cluster down. Sentry's tags are limited for the same reason.
 
@@ -69,7 +69,7 @@ The suite has a `LoudTarget` that does the forbidden thing on purpose. If that c
 
 **A `DotLogFormat` is where a service's quirks go, and `interpret()` is not optional.** A 200 is not a delivery: the bulk API answers 200 with a body saying every document was rejected, and the event collector answers 200 with a non-zero code. A shipper that trusts the status code drops those records and reports itself healthy while it does.
 
-**A 4xx from a collector is permanent** except 408 and 429. dot-core maps every unrecognised non-2xx onto the retryable `DotError.CODE_HTTP`, which is right for an API call and wrong for a shipper; `DotLogTargetHttp._worth_retrying` overrides it on the status code.
+**A 4xx from a collector is permanent** except 408 and 429. GameSpice Core maps every unrecognised non-2xx onto the retryable `DotError.CODE_HTTP`, which is right for an API call and wrong for a shipper; `DotLogTargetHttp._worth_retrying` overrides it on the status code.
 
 ## Reasoning moved out of the source comments
 

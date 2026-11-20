@@ -43,7 +43,7 @@ class FakeHttp extends DotHttp:
 		return "" if requests.is_empty() else str(requests[requests.size() - 1]["body"])
 
 
-## A SQL driver that records statements. The shape dot-moderation's driver already has.
+## A SQL driver that records statements. The shape GameSpice Moderation's driver already has.
 class FakeDriver extends RefCounted:
 	var statements: Array[Dictionary] = []
 	var fail_next: bool = false
