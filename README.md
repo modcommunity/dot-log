@@ -1,4 +1,4 @@
-[![Log - GameSpice addon](docs/banner.png)](https://moddingcommunity.com/a/255-dot-log)
+[![Log - GameSpice addon](docs/banner.png)](https://moddingcommunity.com/a/59-gs-log)
 
 Where your game's log lines go. Every [**GameSpice**](https://gamespice.net) addon already writes through `DotLog` (from [dot-core](https://github.com/gamespice-platform/core)); dot-log decides what happens to those records next: a rotating file, a memory ring, syslog, a database table or a hosted log service. It also filters, hides secrets, collapses floods and batches, once, in front of every destination. Part of TMC's open source **GameSpice** collection (MIT licence).
 
