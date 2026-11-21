@@ -18,7 +18,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first (its logging rules are the on
 
 | Path | What |
 | --- | --- |
-| `addons/dot_log/core/` | `DotLogEvent` (a record as a shippable event; static), `DotLogConfig` (`DOT_LOG_*` / `--log-*`, secrets refused), `DotLogGate` (level, channel, sampling, dedupe, rate), `DotLogRedactor` (by key and by shape), `DotLogBuffer` (bounded queue, drop accounting) |
+| `addons/dot_log/core/` | `DotLogEvent` (a record as a shippable event; static), `DotLogConfig` (`DOT_LOG_*` / `--log-*`, secrets refused), `DotLogGate` (level, channel, sampling, dedupe, rate), `DotLogRedactor` (by key and by shape), `DotLogBuffer` (bounded queue over `DotBoundedBuffer`, byte estimate and drop notice) |
 | `addons/dot_log/sinks/` | `DotLogTarget` (the base) and the file, memory (ring), syslog (UDP immediate, TCP octet-counted), SQL (duck-typed driver) and HTTP (batching, one in flight, circuit breaker, retry policy) targets |
 | `addons/dot_log/formats/` | one `DotLogFormat` per service: body, headers, path, `interpret()` |
 | `addons/dot_log/runtime/` | `DotLogRouter` (the Node; attaches to `DotLog`; the reentrancy guard), `DotLogSqlSchema`, `DotLogCommands` (the `log` console command) |
